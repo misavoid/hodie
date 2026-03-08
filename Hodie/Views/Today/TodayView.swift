@@ -21,16 +21,12 @@ struct TodayView: View {
                 plannedFlexSection(draggable: false)
                 Section("Timeline") {
                     TodayTimelineView(
-                        date: viewModel.selectedDate,
-                        plan: viewModel.plan,
                         segments: viewModel.timelineSegments,
+                        allDayEvents: viewModel.plan.calendarEvents.filter { $0.isAllDay },
                         dayBounds: viewModel.dayBounds,
-                        placingTask: viewModel.timelinePlacementTask,
                         onToggleTask: { task in viewModel.toggleCompletion(task) },
                         onFocusTask: { task in focusController.begin(for: task) },
-                        onPlanTask: { task in viewModel.beginTimelinePlacement(for: task) },
-                        onSelectPlacementTime: { start in viewModel.confirmTimelinePlacement(at: start) },
-                        onCancelPlacement: { viewModel.cancelTimelinePlacement() }
+                        onPlanTask: { task in viewModel.beginTimelinePlacement(for: task) }
                     )
                     .listRowInsets(EdgeInsets())
                 }
@@ -64,6 +60,15 @@ struct TodayView: View {
                 InboxPlanningPicker(tasks: environment.taskStore.inboxTasks()) { task in
                     viewModel.beginTimelinePlacement(for: task)
                 }
+            }
+            .sheet(item: timelinePlacementBinding) { task in
+                TimelineTimePickerSheet(
+                    task: task,
+                    bounds: viewModel.dayBounds,
+                    initialTime: viewModel.timelinePlacementTime ?? viewModel.dayBounds.start,
+                    onConfirm: { start in viewModel.confirmTimelinePlacement(at: start) },
+                    onCancel: { viewModel.cancelTimelinePlacement() }
+                )
             }
             .task { viewModel.load() }
             .refreshable { await viewModel.refresh() }
@@ -176,5 +181,16 @@ struct TodayView: View {
             NSWorkspace.shared.open(url)
         }
 #endif
+    }
+
+    private var timelinePlacementBinding: Binding<Task?> {
+        Binding(
+            get: { viewModel.timelinePlacementTask },
+            set: { newValue in
+                if newValue == nil {
+                    viewModel.cancelTimelinePlacement()
+                }
+            }
+        )
     }
 }

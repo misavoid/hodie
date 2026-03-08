@@ -12,6 +12,7 @@ final class TodayViewModel: ObservableObject {
     @Published private(set) var plan: DayPlan
     @Published private(set) var timelineInteractionState: TimelineInteractionState = .idle
     @Published private(set) var timelinePlacementTask: Task?
+    @Published private(set) var timelinePlacementTime: Date?
 
     var calendarAuthorization: CalendarProvider.AuthorizationState {
         calendarProvider.authorization
@@ -97,24 +98,48 @@ final class TodayViewModel: ObservableObject {
 
     func beginTimelinePlacement(for task: Task) {
         timelinePlacementTask = task
+        timelinePlacementTime = defaultPlacementTime()
         timelineInteractionState = .placing(taskID: task.id)
     }
 
     func cancelTimelinePlacement() {
         timelinePlacementTask = nil
+        timelinePlacementTime = nil
         timelineInteractionState = .idle
     }
 
     func confirmTimelinePlacement(at start: Date) {
         guard let task = timelinePlacementTask else { return }
+        let normalizedStart = normalizedPlacementDate(start)
         let duration = task.estimatedDurationMinutes ?? 60
-        let interval = DateInterval.from(start: start, durationMinutes: duration)
+        let interval = DateInterval.from(start: normalizedStart, durationMinutes: duration)
         taskStore.plan(task, for: selectedDate, interval: interval)
         timelinePlacementTask = nil
+        timelinePlacementTime = nil
         timelineInteractionState = .idle
         _Concurrency.Task { [weak self] in
             guard let self else { return }
             await self.refresh()
         }
+    }
+
+    private func defaultPlacementTime() -> Date {
+        let now = Date()
+        let bounds = dayBounds
+        if now >= bounds.start && now <= bounds.end {
+            return normalizedPlacementDate(now)
+        }
+        return bounds.start
+    }
+
+    private func normalizedPlacementDate(_ date: Date) -> Date {
+        let bounds = dayBounds
+        let clamped = min(max(date, bounds.start), bounds.end)
+        let calendar = Calendar.current
+        var components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: clamped)
+        let minute = components.minute ?? 0
+        let rounded = (minute / 15) * 15
+        components.minute = rounded
+        return calendar.date(from: components) ?? bounds.start
     }
 }

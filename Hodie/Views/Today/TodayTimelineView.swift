@@ -1,43 +1,28 @@
 import SwiftUI
 
 struct TodayTimelineView: View {
-    let date: Date
-    let plan: DayPlan
     let segments: [TimelineSegment]
+    let allDayEvents: [CalendarEvent]
     let dayBounds: (start: Date, end: Date)
-    let placingTask: Task?
     var onToggleTask: (Task) -> Void
     var onFocusTask: (Task) -> Void
     var onPlanTask: (Task) -> Void
-    var onSelectPlacementTime: (Date) -> Void
-    var onCancelPlacement: () -> Void
 
     var body: some View {
-        Group {
-            if let placingTask {
-                TimelinePlacementView(
-                    date: date,
-                    plan: plan,
-                    placingTask: placingTask,
-                    onSelectPlacementTime: onSelectPlacementTime,
-                    onCancelPlacement: onCancelPlacement
-                )
-            } else {
-                CompactTimelineView(
-                    segments: segments,
-                    dayBounds: dayBounds,
-                    onToggleTask: onToggleTask,
-                    onFocusTask: onFocusTask,
-                    onPlanTask: onPlanTask
-                )
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: placingTask?.id)
+        CompactTimelineView(
+            segments: segments,
+            allDayEvents: allDayEvents,
+            dayBounds: dayBounds,
+            onToggleTask: onToggleTask,
+            onFocusTask: onFocusTask,
+            onPlanTask: onPlanTask
+        )
     }
 }
 
 private struct CompactTimelineView: View {
     let segments: [TimelineSegment]
+    let allDayEvents: [CalendarEvent]
     let dayBounds: (start: Date, end: Date)
     var onToggleTask: (Task) -> Void
     var onFocusTask: (Task) -> Void
@@ -50,6 +35,7 @@ private struct CompactTimelineView: View {
                     let nextStart = nextStartDate(after: index) ?? dayBounds.end
                     TimelineSegmentRow(
                         segment: segment,
+                        allDayEvents: index == 0 ? allDayEvents : [],
                         isFirst: index == 0,
                         isLast: index == segments.count - 1,
                         nextStart: nextStart,
@@ -71,6 +57,7 @@ private struct CompactTimelineView: View {
 
 private struct TimelineSegmentRow: View {
     let segment: TimelineSegment
+    let allDayEvents: [CalendarEvent]
     let isFirst: Bool
     let isLast: Bool
     let nextStart: Date
@@ -90,7 +77,7 @@ private struct TimelineSegmentRow: View {
     private var content: some View {
         switch segment.kind {
         case .anchor(let label):
-            TimelineAnchorRow(label: label, time: segment.start)
+            TimelineAnchorRow(label: label, time: segment.start, allDayEvents: allDayEvents, freeTimeText: freeTimeText)
         case .task(let task):
             TimelineTaskCard(
                 task: task,
@@ -100,23 +87,34 @@ private struct TimelineSegmentRow: View {
                 onPlan: { onPlanTask(task) }
             )
         case .event(let event):
-            TimelineEventCard(event: event, start: segment.start, end: segment.end, freeTimeText: nil)
+            TimelineEventCard(event: event, start: segment.start, end: segment.end, freeTimeText: freeTimeText)
         }
     }
 
     private var freeTimeText: String? {
+        guard !isLast else { return nil }
         let gap = nextStart.timeIntervalSince(segment.end)
-        guard gap > 60 else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        let formatted = formatter.string(from: nextStart)
-        return "Free time until \(formatted)"
+        guard gap >= 60 else { return nil }
+        let minutes = Int(gap / 60)
+        let hours = minutes / 60
+        let remainingMinutes = minutes % 60
+        var parts: [String] = []
+        if hours > 0 {
+            parts.append("\(hours)h")
+        }
+        if remainingMinutes > 0 {
+            parts.append("\(remainingMinutes)m")
+        }
+        guard !parts.isEmpty else { return nil }
+        return "\(parts.joined(separator: " ")) free time"
     }
 }
 
 private struct TimelineAnchorRow: View {
     let label: String
     let time: Date
+    let allDayEvents: [CalendarEvent]
+    let freeTimeText: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -125,6 +123,28 @@ private struct TimelineAnchorRow: View {
             Text(time.formatted(date: .omitted, time: .shortened))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if let freeTimeText {
+                Text(freeTimeText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if !allDayEvents.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(allDayEvents) { event in
+                            Label(event.title, systemImage: "sun.max.fill")
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color(.systemGray6))
+                                )
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -258,129 +278,55 @@ private struct TimelineIndicator: View {
     }
 }
 
-private struct TimelinePlacementView: View {
-    let date: Date
-    let plan: DayPlan
-    let placingTask: Task
-    var onSelectPlacementTime: (Date) -> Void
-    var onCancelPlacement: () -> Void
+struct TimelineTimePickerSheet: View {
+    let task: Task
+    let bounds: (start: Date, end: Date)
+    var onConfirm: (Date) -> Void
+    var onCancel: () -> Void
 
-    private let hours = Array(5...22)
+    @State private var selectedTime: Date
+
+    init(task: Task, bounds: (start: Date, end: Date), initialTime: Date, onConfirm: @escaping (Date) -> Void, onCancel: @escaping () -> Void) {
+        self.task = task
+        self.bounds = bounds
+        self.onConfirm = onConfirm
+        self.onCancel = onCancel
+        _selectedTime = State(initialValue: initialTime)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Place \"\(placingTask.title)\"")
-                        .font(.headline)
-                    Text("Select a start time between 5 AM and 10 PM.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Schedule \"\(task.title)\"")
+                    .font(.headline)
+                DatePicker(
+                    "Start time",
+                    selection: $selectedTime,
+                    in: bounds.start...bounds.end,
+                    displayedComponents: .hourAndMinute
+                )
+                #if os(macOS)
+                .datePickerStyle(.field)
+                #else
+                .datePickerStyle(.wheel)
+                #endif
+                .labelsHidden()
+                Text("Choose a time between 5 AM and 10 PM.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 Spacer()
-                Button("Cancel", action: onCancelPlacement)
-                    .buttonStyle(.bordered)
             }
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(hours, id: \.self) { hour in
-                        TimelinePlacementHourRow(
-                            date: date,
-                            hour: hour,
-                            events: events(for: hour),
-                            tasks: tasks(for: hour)
-                        ) { selected in
-                            onSelectPlacementTime(selected)
-                        }
+            .padding()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Schedule") {
+                        onConfirm(selectedTime)
                     }
                 }
-                .padding(.vertical, 4)
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-    }
-
-    private func events(for hour: Int) -> [CalendarEvent] {
-        plan.calendarEvents.filter { event in
-            guard !event.isAllDay else { return false }
-            return Calendar.current.component(.hour, from: event.startDate) == hour
-        }
-    }
-
-    private func tasks(for hour: Int) -> [Task] {
-        plan.scheduledTasks.filter { task in
-            guard let start = task.scheduledStart else { return false }
-            return Calendar.current.component(.hour, from: start) == hour
-        }
-    }
-}
-
-private struct TimelinePlacementHourRow: View {
-    let date: Date
-    let hour: Int
-    let events: [CalendarEvent]
-    let tasks: [Task]
-    var onSelect: (Date) -> Void
-
-    private var minuteIncrements: [Int] {
-        hour == 22 ? [0] : [0, 15, 30, 45]
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(hourLabel)
-                .font(.subheadline.bold())
-            HStack(spacing: 8) {
-                ForEach(minuteIncrements, id: \.self) { minute in
-                    Button {
-                        if let date = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: self.date) {
-                            onSelect(date)
-                        }
-                    } label: {
-                        Text(timeLabel(for: minute))
-                            .font(.caption)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 10)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-            if !(tasks.isEmpty && events.isEmpty) {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(tasks) { task in
-                        Text("• \(task.title)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(events) { event in
-                        Text("• \(event.title)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.leading, 2)
-            } else {
-                Text("Free hour")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            Divider()
-        }
-    }
-
-    private var hourLabel: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h a"
-        return formatter.string(from: Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: date) ?? date)
-    }
-
-    private func timeLabel(for minute: Int) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter.string(from: Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date)
     }
 }

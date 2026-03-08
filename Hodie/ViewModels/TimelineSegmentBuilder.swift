@@ -44,7 +44,7 @@ struct TimelineSegmentBuilder {
 
         let eventEntries = plan.calendarEvents.compactMap { event -> (Date, Date, TimelineSegment.Kind)? in
             if event.isAllDay {
-                return (bounds.start, bounds.start, .event(event))
+                return nil
             }
             let clampedStart = max(bounds.start, event.startDate)
             let clampedEnd = min(bounds.end, event.endDate)
