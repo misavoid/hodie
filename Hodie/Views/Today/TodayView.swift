@@ -44,18 +44,6 @@ struct TodayView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Today")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    EditButton()
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingInboxPicker = true
-                    } label: {
-                        Label("Plan from Inbox", systemImage: "calendar.badge.plus")
-                    }
-                }
-            }
             .sheet(isPresented: $showingInboxPicker) {
                 InboxPlanningPicker(tasks: environment.taskStore.inboxTasks()) { task in
                     viewModel.beginTimelinePlacement(for: task)
@@ -77,7 +65,7 @@ struct TodayView: View {
 
     @ViewBuilder
     private func plannedFlexSection(draggable: Bool) -> some View {
-        Section("Planned flex") {
+        Section {
             plannedFlexContent(draggable: draggable)
         }
     }
@@ -111,6 +99,14 @@ struct TodayView: View {
                 tasks.move(fromOffsets: indices, toOffset: newOffset)
                 viewModel.reorder(tasks: tasks)
             }
+            Button {
+                showingInboxPicker = true
+            } label: {
+                Label("Plan more from inbox", systemImage: "calendar.badge.plus")
+                    .font(.subheadline)
+            }
+            .buttonStyle(.borderless)
+            .padding(.top, 6)
         }
     }
 
