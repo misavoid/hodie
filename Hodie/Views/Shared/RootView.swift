@@ -20,16 +20,12 @@ struct RootView: View {
             List(selection: $macSelection) {
                 Label("Today", systemImage: "sun.max").tag(SidebarItem.today)
                 Label("Inbox", systemImage: "tray").tag(SidebarItem.inbox)
+                Label("Focus", systemImage: "timer").tag(SidebarItem.focus)
                 Label("Review", systemImage: "checklist").tag(SidebarItem.review)
             }
             .frame(minWidth: 180)
         } detail: {
             macContent
-        }
-        .toolbar { focusToolbar }
-        .overlay(alignment: .bottomTrailing) {
-            FocusOverlayView(controller: environment.focusController)
-                .padding()
         }
 #else
         TabView {
@@ -37,26 +33,12 @@ struct RootView: View {
                 .tabItem { Label("Today", systemImage: "sun.max") }
             InboxView(viewModel: inboxViewModel, focusController: environment.focusController)
                 .tabItem { Label("Inbox", systemImage: "tray") }
+            FocusScreen(controller: environment.focusController)
+                .tabItem { Label("Focus", systemImage: "timer") }
             ReviewView(viewModel: reviewViewModel)
                 .tabItem { Label("Review", systemImage: "clock.arrow.circlepath") }
         }
-        .overlay(alignment: .bottom) {
-            FocusOverlayView(controller: environment.focusController)
-                .padding()
-        }
 #endif
-    }
-
-    @ToolbarContentBuilder
-    private var focusToolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .automatic) {
-            Button {
-                environment.focusController.begin(for: nil)
-            } label: {
-                Label("Start Focus", systemImage: "timer")
-            }
-            .keyboardShortcut(.init(.space), modifiers: [.command])
-        }
     }
 
     @ViewBuilder
@@ -66,6 +48,8 @@ struct RootView: View {
             TodayView(viewModel: todayViewModel, focusController: environment.focusController)
         case .inbox:
             InboxView(viewModel: inboxViewModel, focusController: environment.focusController)
+        case .focus:
+            FocusScreen(controller: environment.focusController)
         case .review:
             ReviewView(viewModel: reviewViewModel)
         }
@@ -74,6 +58,7 @@ struct RootView: View {
     enum SidebarItem: Hashable {
         case today
         case inbox
+        case focus
         case review
     }
 }

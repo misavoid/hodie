@@ -16,7 +16,7 @@ struct SettingsView: View {
                     Text("Allow Hodíe to read calendars via System Settings > Privacy > Calendars.")
                 case .needsPermission:
                     Button("Request Access") {
-                        Task { await environment.calendarProvider.requestAccess() }
+                        _Concurrency.Task { await environment.calendarProvider.requestAccess() }
                     }
                 case .unknown:
                     Text("Status unknown")

@@ -9,7 +9,7 @@ struct ReviewView: View {
             List {
                 Section("Summary") {
                     DatePicker("Day", selection: $viewModel.selectedDate, displayedComponents: .date)
-                        .onChange(of: viewModel.selectedDate) { _ in viewModel.refresh() }
+                        .onChange(of: viewModel.selectedDate) { _, _ in viewModel.refresh() }
                     ProgressView(value: viewModel.summary.completionRate)
                     Text("Completed: \(viewModel.summary.completed.count)")
                     Text("Unfinished: \(viewModel.summary.unfinished.count)")

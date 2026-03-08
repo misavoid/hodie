@@ -22,8 +22,10 @@ final class FocusController: ObservableObject {
         self.focusStore = focusStore
         self.focusTimer = timer
         focusTimer.completionHandler = { [weak self] in
-            Task { @MainActor in
-                self?.completeFromTimer()
+            _Concurrency.Task { [weak self] in
+                await MainActor.run {
+                    self?.completeFromTimer()
+                }
             }
         }
         focusTimer.objectWillChange
@@ -70,5 +72,9 @@ final class FocusController: ObservableObject {
         activeSession = nil
         activeTask = nil
         isPresented = false
+    }
+
+    func recentSessions(limit: Int = 10) -> [FocusSession] {
+        focusStore.history(limit: limit)
     }
 }

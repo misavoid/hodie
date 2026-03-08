@@ -1,7 +1,9 @@
 import Foundation
+import Combine
 
 @MainActor
 final class InboxViewModel: ObservableObject {
+    @Published private(set) var inboxTasks: [Task] = []
     @Published var quickTitle: String = ""
     @Published var quickNotes: String = ""
     @Published var quickDueDate: Date? = nil
@@ -14,6 +16,7 @@ final class InboxViewModel: ObservableObject {
 
     init(taskStore: TaskStore) {
         self.taskStore = taskStore
+        refreshInbox()
     }
 
     var canSaveQuickTask: Bool {
@@ -22,12 +25,14 @@ final class InboxViewModel: ObservableObject {
 
     func addQuickTask() {
         guard canSaveQuickTask else { return }
-        taskStore.quickAdd(title: quickTitle.trimmingCharacters(in: .whitespacesAndNewlines), notes: quickNotes, dueDate: quickDueDate, priority: quickPriority)
+        _ = taskStore.quickAdd(title: quickTitle.trimmingCharacters(in: .whitespacesAndNewlines), notes: quickNotes, dueDate: quickDueDate, priority: quickPriority)
+        refreshInbox()
         resetQuickEntry()
     }
 
     func delete(_ task: Task) {
         taskStore.delete(task)
+        refreshInbox()
     }
 
     func plan(_ task: Task, for date: Date, start: Date?, durationMinutes: Int?) {
@@ -38,14 +43,17 @@ final class InboxViewModel: ObservableObject {
             interval = nil
         }
         taskStore.plan(task, for: date, interval: interval)
+        refreshInbox()
     }
 
     func toggleCompletion(_ task: Task) {
         taskStore.toggleCompletion(task)
+        refreshInbox()
     }
 
     func reorder(tasks: [Task]) {
         taskStore.reorder(tasks: tasks)
+        refreshInbox()
     }
 
     func resetQuickEntry() {
@@ -53,5 +61,9 @@ final class InboxViewModel: ObservableObject {
         quickNotes = ""
         quickDueDate = nil
         quickPriority = .normal
+    }
+
+    func refreshInbox() {
+        inboxTasks = taskStore.inboxTasks()
     }
 }

@@ -1,6 +1,7 @@
 import EventKit
 import Foundation
 import SwiftUI
+import Combine
 
 protocol CalendarEventSource: AnyObject {
     func events(for date: Date) async -> [CalendarEvent]
@@ -27,7 +28,7 @@ final class CalendarProvider: ObservableObject, CalendarEventSource {
         switch EKEventStore.authorizationStatus(for: .event) {
         case .notDetermined:
             authorization = .needsPermission
-        case .restricted, .denied:
+        case .restricted, .denied, .writeOnly:
             authorization = .denied
         case .authorized, .fullAccess:
             authorization = .granted

@@ -134,7 +134,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				15E319C02F5DE24600919531 /* Hodie */,
-				15E319ED2F5DE2D200919531 /* docs */,
 			);
 			name = Hodie;
 			packageProductDependencies = (

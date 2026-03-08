@@ -28,54 +28,69 @@ final class TaskStore {
     }
 
     func tasks(in status: Task.Status? = nil, plannedFor date: Date? = nil) -> [Task] {
-        var predicate: Predicate<Task>?
-        switch (status, date) {
-        case (.none, .none):
-            predicate = nil
-        case let (.some(status), .none):
-            predicate = #Predicate { task in task.status == status }
-        case let (.none, .some(date)):
+        let descriptor = FetchDescriptor<Task>(sortBy: [SortDescriptor(\Task.orderIndex, order: .forward)])
+        var results = (try? context.fetch(descriptor)) ?? []
+        if let status {
+            results = results.filter { $0.status == status }
+        }
+        if let date {
             let start = date.startOfDay()
             let end = start.addingTimeInterval(86_400)
-            predicate = #Predicate { task in
-                task.plannedFor != nil && task.plannedFor! >= start && task.plannedFor! < end
-            }
-        case let (.some(status), .some(date)):
-            let start = date.startOfDay()
-            let end = start.addingTimeInterval(86_400)
-            predicate = #Predicate { task in
-                task.status == status && task.plannedFor != nil && task.plannedFor! >= start && task.plannedFor! < end
+            results = results.filter { task in
+                guard let planned = task.plannedFor else { return false }
+                return planned >= start && planned < end
             }
         }
-        let descriptor = FetchDescriptor<Task>(predicate: predicate, sortBy: [SortDescriptor(\Task.orderIndex, order: .forward)])
-        return (try? context.fetch(descriptor)) ?? []
+        return results
     }
 
     func dayPlan(for date: Date) -> DayPlan {
         let start = date.startOfDay()
         let end = start.addingTimeInterval(86_400)
-        let plannedPredicate = #Predicate<Task> { task in
-            task.plannedFor != nil && task.plannedFor! >= start && task.plannedFor! < end && task.status != .completed
+        let descriptor = FetchDescriptor<Task>()
+        let allTasks = (try? context.fetch(descriptor)) ?? []
+        let planned = allTasks.filter { task in
+            guard let plannedDate = task.plannedFor else { return false }
+            return plannedDate >= start && plannedDate < end && task.status != .completed
         }
-        let plannedDescriptor = FetchDescriptor<Task>(predicate: plannedPredicate, sortBy: [
-            SortDescriptor(\Task.scheduledStart, order: .forward),
-            SortDescriptor(\Task.orderIndex, order: .forward)
-        ])
-        let planned = (try? context.fetch(plannedDescriptor)) ?? []
-        let scheduled = planned.filter { $0.status == .scheduled }
-        let flexible = planned.filter { $0.status != .scheduled }
+        let scheduled = planned
+            .filter { $0.status == .scheduled }
+            .sorted {
+                switch ($0.scheduledStart, $1.scheduledStart) {
+                case let (lhs?, rhs?):
+                    if lhs == rhs {
+                        return $0.orderIndex < $1.orderIndex
+                    }
+                    return lhs < rhs
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                case (.none, .none):
+                    return $0.orderIndex < $1.orderIndex
+                }
+            }
+        let flexible = planned
+            .filter { $0.status != .scheduled }
+            .sorted { $0.orderIndex < $1.orderIndex }
 
-        let completedPredicate = #Predicate<Task> { task in
-            task.completedAt != nil && task.completedAt! >= start && task.completedAt! < end
-        }
-        let completedDescriptor = FetchDescriptor<Task>(predicate: completedPredicate, sortBy: [SortDescriptor(\Task.completedAt, order: .reverse)])
-        let completed = (try? context.fetch(completedDescriptor)) ?? []
+        let completed = allTasks
+            .filter { task in
+                guard let completedAt = task.completedAt else { return false }
+                return completedAt >= start && completedAt < end
+            }
+            .sorted { lhs, rhs in
+                guard let lhsDate = lhs.completedAt else { return false }
+                guard let rhsDate = rhs.completedAt else { return true }
+                return lhsDate > rhsDate
+            }
         return DayPlan(date: date, scheduledTasks: scheduled, flexibleTasks: flexible, completedTasks: completed, calendarEvents: [])
     }
 
     func inboxTasks() -> [Task] {
-        let descriptor = FetchDescriptor<Task>(predicate: #Predicate { $0.status == Task.Status.inbox }, sortBy: [SortDescriptor(\Task.orderIndex, order: .forward)])
-        return (try? context.fetch(descriptor)) ?? []
+        let descriptor = FetchDescriptor<Task>(sortBy: [SortDescriptor(\Task.orderIndex, order: .forward)])
+        let tasks = (try? context.fetch(descriptor)) ?? []
+        return tasks.filter { $0.status == .inbox }
     }
 
     func reorder(tasks: [Task]) {

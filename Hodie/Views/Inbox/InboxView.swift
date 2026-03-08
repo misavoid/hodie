@@ -4,7 +4,6 @@ import SwiftData
 struct InboxView: View {
     @ObservedObject var viewModel: InboxViewModel
     @ObservedObject var focusController: FocusController
-    @Query(filter: #Predicate<Task> { $0.status == .inbox }, sort: [SortDescriptor(\Task.orderIndex, order: .forward)]) private var tasks: [Task]
     @State private var editingTask: Task?
     @State private var includeDueDate = false
 
@@ -37,10 +36,10 @@ struct InboxView: View {
                 }
 
                 Section("Inbox") {
-                    if tasks.isEmpty {
+                    if viewModel.inboxTasks.isEmpty {
                         ContentUnavailableView("Inbox is clear", systemImage: "sparkles", description: Text("Capture tasks above to start."))
                     } else {
-                        ForEach(tasks) { task in
+                        ForEach(viewModel.inboxTasks) { task in
                             TaskRowView(
                                 task: task,
                                 onToggle: { viewModel.toggleCompletion(task) },
@@ -59,7 +58,7 @@ struct InboxView: View {
                             }
                         }
                         .onMove { indices, newOffset in
-                            var updated = tasks
+                            var updated = viewModel.inboxTasks
                             updated.move(fromOffsets: indices, toOffset: newOffset)
                             viewModel.reorder(tasks: updated)
                         }
@@ -73,15 +72,14 @@ struct InboxView: View {
                     viewModel.plan(task, for: date, start: start, durationMinutes: duration)
                 }
             }
-            .onChange(of: includeDueDate) { newValue in
-                if newValue {
-                    viewModel.quickDueDate = viewModel.quickDueDate ?? Date()
-                } else {
-                    viewModel.quickDueDate = nil
-                }
+            .onChange(of: includeDueDate) { _, newValue in
+                viewModel.quickDueDate = newValue ? (viewModel.quickDueDate ?? Date()) : nil
             }
             .onAppear {
                 includeDueDate = viewModel.quickDueDate != nil
+            }
+            .task {
+                viewModel.refreshInbox()
             }
         }
     }

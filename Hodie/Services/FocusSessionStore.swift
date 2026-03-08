@@ -32,7 +32,8 @@ final class FocusSessionStore {
     }
 
     func history(limit: Int = 20) -> [FocusSession] {
-        let descriptor = FetchDescriptor<FocusSession>(sortBy: [SortDescriptor(\FocusSession.startedAt, order: .reverse)], fetchLimit: limit)
+        var descriptor = FetchDescriptor<FocusSession>(sortBy: [SortDescriptor(\FocusSession.startedAt, order: .reverse)])
+        descriptor.fetchLimit = limit
         return (try? context.fetch(descriptor)) ?? []
     }
 

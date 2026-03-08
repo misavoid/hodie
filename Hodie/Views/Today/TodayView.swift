@@ -2,9 +2,9 @@ import SwiftUI
 import SwiftData
 
 struct TodayView: View {
+    @EnvironmentObject private var environment: AppEnvironment
     @ObservedObject var viewModel: TodayViewModel
     @ObservedObject var focusController: FocusController
-    @Query(filter: #Predicate<Task> { $0.status == .inbox }, sort: [SortDescriptor(\Task.orderIndex, order: .forward)]) private var inboxTasks: [Task]
     @State private var editingTask: Task?
     @State private var showingInboxPicker = false
 
@@ -90,7 +90,7 @@ struct TodayView: View {
                 }
             }
             .sheet(isPresented: $showingInboxPicker) {
-                InboxPlanningPicker(tasks: inboxTasks) { task in
+                InboxPlanningPicker(tasks: environment.taskStore.inboxTasks()) { task in
                     editingTask = task
                 }
             }

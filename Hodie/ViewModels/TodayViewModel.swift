@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 @MainActor
 final class TodayViewModel: ObservableObject {
@@ -24,8 +25,9 @@ final class TodayViewModel: ObservableObject {
     }
 
     func load() {
-        Task {
-            await refresh()
+        _Concurrency.Task { [weak self] in
+            guard let self else { return }
+            await self.refresh()
         }
     }
 
@@ -38,7 +40,10 @@ final class TodayViewModel: ObservableObject {
 
     func toggleCompletion(_ task: Task) {
         taskStore.toggleCompletion(task)
-        Task { await refresh() }
+        _Concurrency.Task { [weak self] in
+            guard let self else { return }
+            await self.refresh()
+        }
     }
 
     func planToToday(_ task: Task, date: Date, start: Date?, durationMinutes: Int?) {
@@ -49,19 +54,26 @@ final class TodayViewModel: ObservableObject {
             interval = nil
         }
         taskStore.plan(task, for: date, interval: interval)
-        Task { await refresh() }
+        _Concurrency.Task { [weak self] in
+            guard let self else { return }
+            await self.refresh()
+        }
     }
 
     func reorder(tasks: [Task]) {
         taskStore.reorder(tasks: tasks)
-        Task { await refresh() }
+        _Concurrency.Task { [weak self] in
+            guard let self else { return }
+            await self.refresh()
+        }
     }
 
     func requestCalendarAccessIfNeeded() {
         if calendarProvider.authorization == .needsPermission {
-            Task {
-                await calendarProvider.requestAccess()
-                await refresh()
+            _Concurrency.Task { [weak self] in
+                guard let self else { return }
+                await self.calendarProvider.requestAccess()
+                await self.refresh()
             }
         }
     }
