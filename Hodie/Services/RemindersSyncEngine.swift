@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 @MainActor
 final class RemindersSyncEngine: ObservableObject {
@@ -24,9 +25,9 @@ final class RemindersSyncEngine: ObservableObject {
 
     private let provider: RemindersProvider
     private let taskStore: TaskStore
-    private let settings: RemindersSettingsStore
+    private var settings: RemindersSettingsStore
 
-    init(provider: RemindersProvider, taskStore: TaskStore, settings: RemindersSettingsStore = .init()) {
+    init(provider: RemindersProvider, taskStore: TaskStore, settings: RemindersSettingsStore) {
         self.provider = provider
         self.taskStore = taskStore
         self.settings = settings
@@ -42,7 +43,7 @@ final class RemindersSyncEngine: ObservableObject {
             syncState = .idle
             lastSyncedAt = nil
         } else {
-            Task { await syncNow() }
+            _Concurrency.Task { await self.syncNow() }
         }
     }
 
@@ -84,7 +85,7 @@ struct RemindersSettingsStore {
     private let defaults: UserDefaults
     private let selectedKey = "reminders.selected.list_id"
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults) {
         self.defaults = defaults
     }
 

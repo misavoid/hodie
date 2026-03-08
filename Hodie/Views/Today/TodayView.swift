@@ -129,7 +129,7 @@ struct TodayView: View {
 
     private func statBlock(label: String, value: some CustomStringConvertible) -> some View {
         VStack(alignment: .leading) {
-            Text("\(value)").font(.title)
+            Text(verbatim: String(describing: value)).font(.title)
             Text(label).font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

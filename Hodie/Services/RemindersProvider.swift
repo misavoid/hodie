@@ -1,5 +1,6 @@
 import EventKit
 import Foundation
+import Combine
 
 @MainActor
 final class RemindersProvider: ObservableObject {
@@ -39,7 +40,10 @@ final class RemindersProvider: ObservableObject {
             object: eventStore,
             queue: .main
         ) { [weak self] _ in
-            self?.refreshLists()
+            guard let self else { return }
+            _Concurrency.Task { @MainActor in
+                self.refreshLists()
+            }
         }
     }
 

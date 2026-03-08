@@ -13,7 +13,7 @@ struct RemindersSettingsView: View {
                 if provider.authorization == .granted, syncEngine.selectedListID != nil {
                     Section {
                         Button {
-                            Task { await syncEngine.syncNow() }
+                            _Concurrency.Task { await syncEngine.syncNow() }
                         } label: {
                             if case .syncing = syncEngine.syncState {
                                 HStack {
@@ -46,7 +46,7 @@ struct RemindersSettingsView: View {
             switch provider.authorization {
             case .needsPermission:
                 Button("Request Access") {
-                    Task { await provider.requestAccess() }
+                    _Concurrency.Task { await provider.requestAccess() }
                 }
                 Text("Hodíe needs reminders access to import Siri-captured tasks.")
                     .font(.footnote)
@@ -83,16 +83,17 @@ struct RemindersSettingsView: View {
     }
 
     private var listsSection: some View {
-        Section("Reminder Lists") {
+        let lists = provider.availableLists
+        return Section("Reminder Lists") {
             if provider.authorization != .granted {
                 Text("Grant reminders access to view your lists.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-            } else if provider.availableLists.isEmpty {
+            } else if lists.isEmpty {
                 Text("No reminder lists available.")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(provider.availableLists) { list in
+                ForEach(lists, id: \.id) { list in
                     Button {
                         syncEngine.select(listID: list.id)
                     } label: {

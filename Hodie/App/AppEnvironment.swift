@@ -27,6 +27,7 @@ final class AppEnvironment: ObservableObject {
         self.focusTimer = FocusTimerEngine()
         self.focusController = FocusController(focusStore: focusStore, timer: focusTimer)
         self.remindersProvider = RemindersProvider()
-        self.remindersSync = RemindersSyncEngine(provider: remindersProvider, taskStore: taskStore)
+        let remindersSettings = RemindersSettingsStore(defaults: .standard)
+        self.remindersSync = RemindersSyncEngine(provider: remindersProvider, taskStore: taskStore, settings: remindersSettings)
     }
 }

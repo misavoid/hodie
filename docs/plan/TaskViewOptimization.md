@@ -1,3 +1,6 @@
+- very slow
+- make task title box larger
+
 - when creating a task make it necessary to select a task type
 - there are three types: 
 1. quick tick (5 min) 
