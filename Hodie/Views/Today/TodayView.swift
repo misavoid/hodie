@@ -240,7 +240,7 @@ struct TodayView: View {
                             HStack(spacing: 8) {
                                 Image(systemName: "tray.full")
                                     .font(.body)
-                                Text("All-day events (\(allDayEvents.count))")
+                                Text(verbatim: "All-day events (\(allDayEvents.count))")
                                     .font(.subheadline.bold())
                                 Spacer()
                             }

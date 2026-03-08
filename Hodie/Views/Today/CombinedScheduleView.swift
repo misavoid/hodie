@@ -116,25 +116,17 @@ private struct TimelineRow: View {
         )
         .dropDestination(
             for: TaskDragItem.self,
-            isTargeted: Binding(
-                get: { expandedHour == hour },
-                set: { hovering in
-                    if hovering {
-                        expandedHour = hour
-                    } else if expandedHour == hour {
-                        expandedHour = nil
-                    }
-                }
-            )
-        ) { items, location in
-            guard
-                let id = items.first?.id,
-                let startDate = startDate(for: location.y)
-            else { return false }
-            onDropTask(id, startDate)
-            expandedHour = nil
-            return true
-        }
+            action: { items, location in
+                guard
+                    let id = items.first?.id,
+                    let startDate = startDate(for: location.y)
+                else { return false }
+                onDropTask(id, startDate)
+                expandedHour = nil
+                return true
+            },
+            isTargeted: targetBinding
+        )
         .animation(.easeInOut(duration: 0.18), value: expandedHour)
     }
 
@@ -163,6 +155,15 @@ private struct TimelineRow: View {
         let ratio = clamped / height
         let minute = max(0, min(59, Int((ratio * 60).rounded(.down))))
         return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: date)
+    }
+
+    private var targetBinding: Binding<Bool> {
+        Binding(
+            get: { expandedHour == hour },
+            set: { hovering in
+                expandedHour = hovering ? hour : nil
+            }
+        )
     }
 }
 
