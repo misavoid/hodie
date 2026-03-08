@@ -88,7 +88,7 @@ This plan translates `AGENTS.md` and `docs/plan/Hodie_PLAN.md` into a concrete a
 
 ### Today View
 - Layout: hybrid timeline (events + scheduled tasks) plus a "Planned Flex" shelf that surfaces immediately above the timeline in combined mode for drag-and-drop scheduling.
-- `TimelineColumnView` renders events/time blocks with 30-min grid; a toggle switches between separate Calendar/Scheduled sections and a combined interactive timeline that lets users drag tasks to new time slots.
+- `TimelineColumnView` renders a compact 5 am–10 pm rail with quarter-hour micro-markers; a toggle switches between separate Calendar/Scheduled sections and a combined interactive timeline that lets users drag tasks to new time slots, expanding the hovered hour dynamically while dragging.
 - Drag targets to allow promoting from inbox via `PlanTaskSheet` (sheet/popover) or context menu, plus drag-and-drop within the timeline to reschedule tasks.
 - Calendar permission state handled gracefully (empty state w/ CTA) with all-day events collapsed into a single disclosure group so timelines stay compact.
 
