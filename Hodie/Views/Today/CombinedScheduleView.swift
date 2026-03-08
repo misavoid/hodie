@@ -124,9 +124,14 @@ private struct TimelineRow: View {
                 onDropTask(id, startDate)
                 expandedHour = nil
                 return true
-            },
-            isTargeted: targetBinding
-        )
+            }
+        ) { hovering in
+            if hovering {
+                expandedHour = hour
+            } else if expandedHour == hour {
+                expandedHour = nil
+            }
+        }
         .animation(.easeInOut(duration: 0.18), value: expandedHour)
     }
 
@@ -157,14 +162,6 @@ private struct TimelineRow: View {
         return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: date)
     }
 
-    private var targetBinding: Binding<Bool> {
-        Binding(
-            get: { expandedHour == hour },
-            set: { hovering in
-                expandedHour = hovering ? hour : nil
-            }
-        )
-    }
 }
 
 private struct TimelineIndicator: View {
