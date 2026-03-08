@@ -7,6 +7,7 @@ struct CalendarEvent: Identifiable, Hashable {
     let endDate: Date
     let location: String?
     let calendarTitle: String?
+    let isAllDay: Bool
 }
 
 struct DayPlan {

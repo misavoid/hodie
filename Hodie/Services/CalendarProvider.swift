@@ -79,7 +79,8 @@ final class CalendarProvider: ObservableObject, CalendarEventSource {
                 startDate: ekEvent.startDate,
                 endDate: ekEvent.endDate,
                 location: ekEvent.location,
-                calendarTitle: ekEvent.calendar.title
+                calendarTitle: ekEvent.calendar.title,
+                isAllDay: ekEvent.isAllDay
             )
         }
         cache[start] = events

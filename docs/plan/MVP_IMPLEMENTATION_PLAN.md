@@ -8,8 +8,8 @@ This plan translates `AGENTS.md` and `docs/plan/Hodie_PLAN.md` into a concrete a
 
 - **App Shell**
   - Shared SwiftUI entry with `HodieApp` creating a `ModelContainer` (SwiftData) containing `Task` and `FocusSession` models.
-  - iOS root: `TabView` with Today (default), Inbox, Review. Focus runs as an overlay sheet/state that can be triggered anywhere.
-  - macOS root: `NavigationSplitView` with sidebar sections (Today, Inbox, Review) and a persistent Focus panel for keyboard-driven control.
+  - iOS root: `TabView` with Today (default), Inbox, Focus, Review so the timer is a first-class destination instead of a transient overlay.
+  - macOS root: `NavigationSplitView` with sidebar sections (Today, Inbox, Focus, Review) so desktop users can keep a focus screen pinned next to planning/work views.
 - **Pattern**: MVVM with lightweight services. Views stay declarative; view models own state mutations and talk to repositories.
 - **Modules (directories)**
   - `Models/` (SwiftData entities + enums)
@@ -90,7 +90,7 @@ This plan translates `AGENTS.md` and `docs/plan/Hodie_PLAN.md` into a concrete a
 - Layout: hybrid timeline (events + scheduled tasks) plus "Planned Flex" list beneath.
 - `TimelineColumnView` renders events/time blocks with 30-min grid; tasks without times appear in "Planned Today" stack with reorder drag.
 - Drag targets to allow promoting from inbox via `PlanTaskSheet` (sheet/popover) or context menu.
-- Calendar permission state handled gracefully (empty state w/ CTA).
+- Calendar permission state handled gracefully (empty state w/ CTA) with all-day events collapsed into a single disclosure group so timelines stay compact.
 
 ### Planning Flow
 - Dedicated sheet accessible from Inbox row actions or Today header.
@@ -98,9 +98,9 @@ This plan translates `AGENTS.md` and `docs/plan/Hodie_PLAN.md` into a concrete a
 - Updating a task triggers `TaskStore.plan(task, for: date, schedule: DateInterval?)`.
 
 ### Focus Timer
-- Access: swipe on task, Today row button, or global focus button (macOS). Shows `FocusSessionView` overlay with countdown, progress ring, controls.
+- Access: dedicated Focus tab/screen plus contextual task actions; screen shows countdown, presets, and recent history so Focus is part of the main navigation on both platforms.
 - Timer starts via `FocusViewModel` which coordinates `FocusTimerEngine` + `FocusSessionStore` to persist session once completed/stopped.
-- History list visible in Review tab and task detail.
+- History list visible inside the Focus screen and Review tab.
 
 ### Daily Review
 - `ReviewView` surfaces the current/previous day summary: completed tasks, unfinished planned tasks, focus stats.

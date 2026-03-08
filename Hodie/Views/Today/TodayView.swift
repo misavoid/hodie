@@ -1,5 +1,10 @@
 import SwiftUI
 import SwiftData
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 struct TodayView: View {
     @EnvironmentObject private var environment: AppEnvironment
@@ -7,6 +12,7 @@ struct TodayView: View {
     @ObservedObject var focusController: FocusController
     @State private var editingTask: Task?
     @State private var showingInboxPicker = false
+    @State private var showAllDayEvents = false
 
     var body: some View {
         NavigationStack {
@@ -100,7 +106,7 @@ struct TodayView: View {
     }
 
     private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text(viewModel.selectedDate, style: .date)
                 .font(.title2)
                 .bold()
@@ -109,13 +115,9 @@ struct TodayView: View {
                 statBlock(label: "Done", value: viewModel.plan.completedTasks.count)
                 statBlock(label: "Focus", value: viewModel.plan.hasFocusHistory ? "Active" : "—")
             }
-            if viewModel.calendarAuthorization == .needsPermission {
-                Button("Connect Calendar") {
-                    viewModel.requestCalendarAccessIfNeeded()
-                }
-            }
+            calendarStatusView
         }
-        .padding(.vertical)
+        .padding(.vertical, 16)
     }
 
     private func statBlock(label: String, value: some CustomStringConvertible) -> some View {
@@ -127,25 +129,111 @@ struct TodayView: View {
     }
 
     @ViewBuilder
+    private var calendarStatusView: some View {
+        switch viewModel.calendarAuthorization {
+        case .needsPermission:
+            Button {
+                viewModel.requestCalendarAccessIfNeeded()
+            } label: {
+                Label("Connect Calendar", systemImage: "calendar.badge.plus")
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.top, 4)
+        case .granted:
+            Label("Calendar connected", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.subheadline)
+                .padding(.top, 4)
+        case .denied:
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Calendar access denied", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                Button("Open Settings") {
+                    openCalendarSettings()
+                }
+                .buttonStyle(.bordered)
+                .padding(.top, 4)
+            }
+            .padding(.top, 4)
+        case .unknown:
+            ProgressView("Checking calendar access…")
+                .padding(.top, 4)
+        }
+    }
+
+    @ViewBuilder
     private var calendarContent: some View {
-        if viewModel.plan.calendarEvents.isEmpty {
-            Text("No events connected.")
-                .foregroundStyle(.secondary)
-        } else {
-            ForEach(viewModel.plan.calendarEvents) { event in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(event.title).bold()
-                    Text("\(event.startDate.formatted(date: .omitted, time: .shortened)) – \(event.endDate.formatted(date: .omitted, time: .shortened))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let location = event.location {
-                        Text(location)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+        switch viewModel.calendarAuthorization {
+        case .granted:
+            let allDayEvents = viewModel.plan.calendarEvents.filter { $0.isAllDay }
+            let timedEvents = viewModel.plan.calendarEvents.filter { !$0.isAllDay }
+            if allDayEvents.isEmpty && timedEvents.isEmpty {
+                Text("No events scheduled for today.")
+                    .foregroundStyle(.secondary)
+            } else {
+                if !allDayEvents.isEmpty {
+                    DisclosureGroup(isExpanded: $showAllDayEvents) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(allDayEvents) { event in
+                                calendarEventRow(event, showTime: false)
+                                    .padding(.vertical, 2)
+                            }
+                        }
+                        .padding(.top, 4)
+                    } label: {
+                        Label("All-day events (\(allDayEvents.count))", systemImage: "tray.full")
+                            .font(.subheadline)
+                            .bold()
+                    }
+                    .padding(.bottom, 8)
+                }
+                if !timedEvents.isEmpty {
+                    ForEach(timedEvents) { event in
+                        calendarEventRow(event, showTime: true)
+                            .padding(.vertical, 4)
                     }
                 }
-                .padding(.vertical, 4)
+            }
+        case .needsPermission:
+            Text("Connect your calendar above to see today’s events.")
+                .foregroundStyle(.secondary)
+        case .denied:
+            Text("Calendar access is disabled. Enable it in Settings to show events here.")
+                .foregroundStyle(.secondary)
+        case .unknown:
+            ProgressView("Loading calendar…")
+        }
+    }
+
+    private func calendarEventRow(_ event: CalendarEvent, showTime: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(event.title).bold()
+            if showTime {
+                Text("\(event.startDate.formatted(date: .omitted, time: .shortened)) – \(event.endDate.formatted(date: .omitted, time: .shortened))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("All day")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let location = event.location, !location.isEmpty {
+                Text(location)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func openCalendarSettings() {
+#if os(iOS)
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
+#elseif os(macOS)
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+            NSWorkspace.shared.open(url)
+        }
+#endif
     }
 }
