@@ -30,14 +30,14 @@ struct TodayTimelineView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if !allDayEvents.isEmpty {
-                AllDayEventsView(events: allDayEvents)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                TimelineAnchorHeader(
+                    label: "Start of day",
+                    time: dayBounds.start,
+                    allDayEvents: allDayEvents
+                )
 
-            if sortedLayouts.isEmpty {
-                EmptyTimelineView(start: dayBounds.start, end: dayBounds.end)
-            } else {
                 TimelineCanvasView(
                     layouts: sortedLayouts,
                     nextStartLookup: nextStartLookup,
@@ -46,9 +46,11 @@ struct TodayTimelineView: View {
                     onFocusTask: onFocusTask,
                     onPlanTask: onPlanTask
                 )
+
+                TimelineAnchorFooter(label: "End of day", time: dayBounds.end)
             }
+            .padding(.vertical, 12)
         }
-        .padding(.vertical, 12)
     }
 }
 
@@ -60,12 +62,12 @@ private struct TimelineCanvasView: View {
     var onFocusTask: (Task) -> Void
     var onPlanTask: (Task) -> Void
 
-    private let hourHeight: CGFloat = 28
+    private let hourHeight: CGFloat = 60
     private var totalMinutes: Double {
         dayBounds.end.timeIntervalSince(dayBounds.start) / 60
     }
     private var totalHeight: CGFloat {
-        max(220, CGFloat(totalMinutes) * (hourHeight / 60))
+        CGFloat(totalMinutes) * (hourHeight / 60)
     }
 
     var body: some View {
@@ -137,20 +139,18 @@ private struct TimelineAxisView: View {
     let height: CGFloat
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(bounds.start.formatted(date: .omitted, time: .shortened))
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.bottom, 4)
             Rectangle()
                 .fill(Color(.systemGray5))
                 .frame(width: 2, height: height - 32)
             Text(bounds.end.formatted(date: .omitted, time: .shortened))
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.top, 4)
         }
-        .frame(width: 50)
+        .frame(width: 60, alignment: .leading)
     }
 }
 
@@ -288,25 +288,32 @@ private struct TimelineEventBlock: View {
     }
 }
 
-private struct AllDayEventsView: View {
-    let events: [CalendarEvent]
+private struct TimelineAnchorHeader: View {
+    let label: String
+    let time: Date
+    let allDayEvents: [CalendarEvent]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("All-day")
-                .font(.subheadline.bold())
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(events) { event in
-                        Label(event.title, systemImage: "sun.max.fill")
-                            .font(.caption)
-                            .lineLimit(1)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(Color(.systemGray6))
-                            )
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label)
+                .font(.headline)
+            Text(time.formatted(date: .omitted, time: .shortened))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if !allDayEvents.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(allDayEvents) { event in
+                            Label(event.title, systemImage: "sun.max.fill")
+                                .lineLimit(1)
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color(.systemGray6))
+                                )
+                        }
                     }
                 }
             }
@@ -315,28 +322,18 @@ private struct AllDayEventsView: View {
     }
 }
 
-private struct EmptyTimelineView: View {
-    let start: Date
-    let end: Date
+private struct TimelineAnchorFooter: View {
+    let label: String
+    let time: Date
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(start.formatted(date: .omitted, time: .shortened))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text("No scheduled blocks. Enjoy free time until \(end.formatted(date: .omitted, time: .shortened)).")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Text(end.formatted(date: .omitted, time: .shortened))
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.headline)
+            Text(time.formatted(date: .omitted, time: .shortened))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
         .padding(.horizontal)
     }
 }
