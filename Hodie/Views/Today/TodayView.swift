@@ -10,10 +10,7 @@ struct TodayView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @ObservedObject var viewModel: TodayViewModel
     @ObservedObject var focusController: FocusController
-    @State private var editingTask: Task?
     @State private var showingInboxPicker = false
-    @State private var showCombinedSchedule = false
-    @State private var showAllDayEvents = false
 
     var body: some View {
         NavigationStack {
@@ -21,54 +18,21 @@ struct TodayView: View {
                 Section {
                     summaryCard
                 }
-                Section {
-                    Picker("Schedule View", selection: $showCombinedSchedule) {
-                        Text("Timeline").tag(true)
-                        Text("Separate").tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                }
-                if showCombinedSchedule {
-                    Section("Schedule") {
-                        plannedFlexInline(draggable: true)
-                            .padding(.bottom, 12)
-
-                        CombinedScheduleView(
-                            date: viewModel.selectedDate,
-                            events: viewModel.plan.calendarEvents,
-                            tasks: viewModel.plan.scheduledTasks
-                        ) { id, start in
-                            viewModel.rescheduleTask(id: id, to: start)
-                        }
-                        .listRowInsets(EdgeInsets())
-                    }
-                } else {
-                    Section("Calendar") {
-                        calendarContent
-                    }
-                    Section("Scheduled") {
-                        if viewModel.plan.scheduledTasks.isEmpty {
-                            Text("No scheduled blocks yet.")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(viewModel.plan.scheduledTasks) { task in
-                                TaskRowView(
-                                    task: task,
-                                    showTime: true,
-                                    onToggle: { viewModel.toggleCompletion(task) },
-                                    onFocus: { focusController.begin(for: task) },
-                                    onPlan: { editingTask = task },
-                                    isDraggable: true
-                                )
-                            }
-                            .onMove { indices, newOffset in
-                                var tasks = viewModel.plan.scheduledTasks
-                                tasks.move(fromOffsets: indices, toOffset: newOffset)
-                                viewModel.reorder(tasks: tasks)
-                            }
-                        }
-                    }
-                    plannedFlexSection(draggable: false)
+                plannedFlexSection(draggable: false)
+                Section("Timeline") {
+                    TodayTimelineView(
+                        date: viewModel.selectedDate,
+                        plan: viewModel.plan,
+                        segments: viewModel.timelineSegments,
+                        dayBounds: viewModel.dayBounds,
+                        placingTask: viewModel.timelinePlacementTask,
+                        onToggleTask: { task in viewModel.toggleCompletion(task) },
+                        onFocusTask: { task in focusController.begin(for: task) },
+                        onPlanTask: { task in viewModel.beginTimelinePlacement(for: task) },
+                        onSelectPlacementTime: { start in viewModel.confirmTimelinePlacement(at: start) },
+                        onCancelPlacement: { viewModel.cancelTimelinePlacement() }
+                    )
+                    .listRowInsets(EdgeInsets())
                 }
                 Section("Completed") {
                     if viewModel.plan.completedTasks.isEmpty {
@@ -96,14 +60,9 @@ struct TodayView: View {
                     }
                 }
             }
-            .sheet(item: $editingTask) { task in
-                TaskPlanningSheet(task: task, defaultDate: viewModel.selectedDate) { date, start, duration in
-                    viewModel.planToToday(task, date: date, start: start, durationMinutes: duration)
-                }
-            }
             .sheet(isPresented: $showingInboxPicker) {
                 InboxPlanningPicker(tasks: environment.taskStore.inboxTasks()) { task in
-                    editingTask = task
+                    viewModel.beginTimelinePlacement(for: task)
                 }
             }
             .task { viewModel.load() }
@@ -114,16 +73,6 @@ struct TodayView: View {
     @ViewBuilder
     private func plannedFlexSection(draggable: Bool) -> some View {
         Section("Planned flex") {
-            plannedFlexContent(draggable: draggable)
-        }
-    }
-
-    @ViewBuilder
-    private func plannedFlexInline(draggable: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Planned flex")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
             plannedFlexContent(draggable: draggable)
         }
     }
@@ -148,7 +97,7 @@ struct TodayView: View {
                     task: task,
                     onToggle: { viewModel.toggleCompletion(task) },
                     onFocus: { focusController.begin(for: task) },
-                    onPlan: { editingTask = task },
+                    onPlan: { viewModel.beginTimelinePlacement(for: task) },
                     isDraggable: draggable
                 )
             }
@@ -214,75 +163,6 @@ struct TodayView: View {
         case .unknown:
             ProgressView("Checking calendar access…")
                 .padding(.top, 8)
-        }
-    }
-
-    @ViewBuilder
-    private var calendarContent: some View {
-        switch viewModel.calendarAuthorization {
-        case .granted:
-            let allDayEvents = viewModel.plan.calendarEvents.filter { $0.isAllDay }
-            let timedEvents = viewModel.plan.calendarEvents.filter { !$0.isAllDay }
-            if allDayEvents.isEmpty && timedEvents.isEmpty {
-                Text("No events scheduled for today.")
-                    .foregroundStyle(.secondary)
-            } else {
-                if !allDayEvents.isEmpty {
-                    DisclosureGroup(isExpanded: $showAllDayEvents) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(allDayEvents) { event in
-                                calendarEventRow(event, showTime: false)
-                                    .padding(.vertical, 2)
-                            }
-                        }
-                        .padding(.top, 4)
-                    } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "tray.full")
-                                    .font(.body)
-                                Text(verbatim: "All-day events (\(allDayEvents.count))")
-                                    .font(.subheadline.bold())
-                                Spacer()
-                            }
-                        .padding(.vertical, 6)
-                    }
-                    .padding(.bottom, 8)
-                }
-                if !timedEvents.isEmpty {
-                    ForEach(timedEvents) { event in
-                        calendarEventRow(event, showTime: true)
-                            .padding(.vertical, 4)
-                    }
-                }
-            }
-        case .needsPermission:
-            Text("Connect your calendar above to see today’s events.")
-                .foregroundStyle(.secondary)
-        case .denied:
-            Text("Calendar access is disabled. Enable it in Settings to show events here.")
-                .foregroundStyle(.secondary)
-        case .unknown:
-            ProgressView("Loading calendar…")
-        }
-    }
-
-    private func calendarEventRow(_ event: CalendarEvent, showTime: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(event.title).bold()
-            if showTime {
-                Text("\(event.startDate.formatted(date: .omitted, time: .shortened)) – \(event.endDate.formatted(date: .omitted, time: .shortened))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("All day")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if let location = event.location, !location.isEmpty {
-                Text(location)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 

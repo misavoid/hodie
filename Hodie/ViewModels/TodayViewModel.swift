@@ -1,12 +1,17 @@
 import Foundation
 import Combine
 
+enum TimelineInteractionState: Equatable {
+    case idle
+    case placing(taskID: UUID)
+}
+
 @MainActor
 final class TodayViewModel: ObservableObject {
     @Published var selectedDate: Date
     @Published private(set) var plan: DayPlan
-    @Published var showingPlanningSheet = false
-    @Published var taskBeingPlanned: Task?
+    @Published private(set) var timelineInteractionState: TimelineInteractionState = .idle
+    @Published private(set) var timelinePlacementTask: Task?
 
     var calendarAuthorization: CalendarProvider.AuthorizationState {
         calendarProvider.authorization
@@ -15,6 +20,7 @@ final class TodayViewModel: ObservableObject {
     private let planner: DayPlanner
     private let taskStore: TaskStore
     private let calendarProvider: CalendarProvider
+    private let timelineBuilder = TimelineSegmentBuilder()
 
     init(planner: DayPlanner, taskStore: TaskStore, calendarProvider: CalendarProvider) {
         self.planner = planner
@@ -22,6 +28,14 @@ final class TodayViewModel: ObservableObject {
         self.calendarProvider = calendarProvider
         self.selectedDate = .now.startOfDay()
         self.plan = .empty(for: .now)
+    }
+
+    var timelineSegments: [TimelineSegment] {
+        timelineBuilder.segments(for: plan)
+    }
+
+    var dayBounds: (start: Date, end: Date) {
+        timelineBuilder.dayBounds(for: selectedDate)
     }
 
     func load() {
@@ -40,20 +54,6 @@ final class TodayViewModel: ObservableObject {
 
     func toggleCompletion(_ task: Task) {
         taskStore.toggleCompletion(task)
-        _Concurrency.Task { [weak self] in
-            guard let self else { return }
-            await self.refresh()
-        }
-    }
-
-    func planToToday(_ task: Task, date: Date, start: Date?, durationMinutes: Int?) {
-        let interval: DateInterval?
-        if let start, let durationMinutes {
-            interval = DateInterval.from(start: start, durationMinutes: durationMinutes)
-        } else {
-            interval = nil
-        }
-        taskStore.plan(task, for: date, interval: interval)
         _Concurrency.Task { [weak self] in
             guard let self else { return }
             await self.refresh()
@@ -81,6 +81,7 @@ final class TodayViewModel: ObservableObject {
     func task(with id: UUID) -> Task? {
         plan.scheduledTasks.first { $0.id == id }
             ?? plan.flexibleTasks.first { $0.id == id }
+            ?? (timelinePlacementTask?.id == id ? timelinePlacementTask : nil)
     }
 
     func rescheduleTask(id: UUID, to start: Date) {
@@ -88,6 +89,29 @@ final class TodayViewModel: ObservableObject {
         let duration = task.estimatedDurationMinutes ?? 60
         let interval = DateInterval.from(start: start, durationMinutes: duration)
         taskStore.plan(task, for: selectedDate, interval: interval)
+        _Concurrency.Task { [weak self] in
+            guard let self else { return }
+            await self.refresh()
+        }
+    }
+
+    func beginTimelinePlacement(for task: Task) {
+        timelinePlacementTask = task
+        timelineInteractionState = .placing(taskID: task.id)
+    }
+
+    func cancelTimelinePlacement() {
+        timelinePlacementTask = nil
+        timelineInteractionState = .idle
+    }
+
+    func confirmTimelinePlacement(at start: Date) {
+        guard let task = timelinePlacementTask else { return }
+        let duration = task.estimatedDurationMinutes ?? 60
+        let interval = DateInterval.from(start: start, durationMinutes: duration)
+        taskStore.plan(task, for: selectedDate, interval: interval)
+        timelinePlacementTask = nil
+        timelineInteractionState = .idle
         _Concurrency.Task { [weak self] in
             guard let self else { return }
             await self.refresh()
