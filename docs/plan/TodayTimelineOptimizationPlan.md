@@ -25,6 +25,7 @@ Introduce `TimelineInteractionState` inside `TodayViewModel`:
 - Hour labels are hidden in `.idle`; during placement, only the clock picker is shown so the timeline stays uncluttered.
 - Empty spans between segments are not rendered as their own rows; instead, each block footer shows the duration of the next gap (e.g., `3h 20m free time`). If the day ends after the current block, use the remaining time until 10:00 PM.
 - All-day events render as a condensed inline list (chips under the start anchor) so they remain visible context without consuming full-card height in the timeline.
+- Overlapping timed blocks (tasks or events) share horizontal lanes so items starting at the same or partially overlapping times appear beside each other, sized vertically according to their duration.
 - Placement relies entirely on the clock selector (wheel on iOS, combo/time field on macOS). After the user confirms, scroll the new block into view and collapse the picker sheet.
 
 ## Implementation Steps

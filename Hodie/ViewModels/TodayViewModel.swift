@@ -21,7 +21,7 @@ final class TodayViewModel: ObservableObject {
     private let planner: DayPlanner
     private let taskStore: TaskStore
     private let calendarProvider: CalendarProvider
-    private let timelineBuilder = TimelineSegmentBuilder()
+    private let timelineBuilder = TimelineScheduleBuilder()
 
     init(planner: DayPlanner, taskStore: TaskStore, calendarProvider: CalendarProvider) {
         self.planner = planner
@@ -31,8 +31,8 @@ final class TodayViewModel: ObservableObject {
         self.plan = .empty(for: .now)
     }
 
-    var timelineSegments: [TimelineSegment] {
-        timelineBuilder.segments(for: plan)
+    var timelineLayouts: [TimelineScheduleLayout] {
+        timelineBuilder.layouts(for: plan)
     }
 
     var dayBounds: (start: Date, end: Date) {

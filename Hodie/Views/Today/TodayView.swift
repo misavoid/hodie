@@ -21,7 +21,7 @@ struct TodayView: View {
                 plannedFlexSection(draggable: false)
                 Section("Timeline") {
                     TodayTimelineView(
-                        segments: viewModel.timelineSegments,
+                        layouts: viewModel.timelineLayouts,
                         allDayEvents: viewModel.plan.calendarEvents.filter { $0.isAllDay },
                         dayBounds: viewModel.dayBounds,
                         onToggleTask: { task in viewModel.toggleCompletion(task) },
