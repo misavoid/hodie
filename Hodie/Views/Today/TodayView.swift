@@ -24,6 +24,7 @@ struct TodayView: View {
                         layouts: viewModel.timelineLayouts,
                         allDayEvents: viewModel.plan.calendarEvents.filter { $0.isAllDay },
                         dayBounds: viewModel.dayBounds,
+                        interactionState: viewModel.timelineInteractionState,
                         onToggleTask: { task in viewModel.toggleCompletion(task) },
                         onFocusTask: { task in focusController.begin(for: task) },
                         onPlanTask: { task in viewModel.beginTimelinePlacement(for: task) }

@@ -39,3 +39,11 @@ Introduce `TimelineInteractionState` inside `TodayViewModel`:
 - Extend unit tests (`TodayViewModelTests`) to cover segment generation and `TimelineInteractionState` transitions.
 - Add UI tests that: enter placing mode, verify hour markers appear, drag a task into the timeline, and confirm the view collapses with the “free time” label displayed.
 - Manually verify on both iOS and macOS that timeline scrolling, drag/drop, and focus timer integrations still behave as expected.
+
+## Progress — 2026-03-08
+- Added `TimelineInteractionState`-aware axis logic in `TodayTimelineView` so the idle state now shows only the start/end anchors while `.placing` reveals hourly tick labels along the rail (matches the “anchors-only vs. hour markers” goal in this plan).
+- Narrowed the idle axis footprint (24 pt) while expanding to 84 pt when markers are visible, which gives timeline cards more breathing room without sacrificing readability when choosing a start time.
+- Timeline canvas now trims its vertical span to the first/last scheduled blocks so there’s no empty gutter before breakfast or after the final task; the axis reuses those compressed bounds while free-time summaries communicate any gaps.
+- Free-time footer generation now covers every scheduled block (including the last one, which now reports `Xm until end of day`), eliminating the missing labels seen in QA screenshots.
+- Follow-ups: cover the axis toggle in a snapshot/UI test, and consider adding the optional `.confirming` interaction state once the time picker animation work resumes.
+- New follow-ups: add regression coverage for the compressed timeline bounds (e.g., ensure all-day-empty states still render a reasonable placeholder) and verify localized strings for “until end of day.”

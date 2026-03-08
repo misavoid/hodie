@@ -10,5 +10,19 @@
 	<string>Hodíe uses your calendars to show today’s events so you can plan tasks around real commitments.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Hodíe needs calendar access to display your schedule in the Today view.</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeDescription</key>
+			<string>Hodíe Task Identifier</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.hodie.task</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.mime-type</key>
+				<string>application/vnd.hodie.task</string>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

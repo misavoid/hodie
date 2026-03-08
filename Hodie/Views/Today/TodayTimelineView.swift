@@ -4,6 +4,7 @@ struct TodayTimelineView: View {
     let layouts: [TimelineScheduleLayout]
     let allDayEvents: [CalendarEvent]
     let dayBounds: (start: Date, end: Date)
+    let interactionState: TimelineInteractionState
     var onToggleTask: (Task) -> Void
     var onFocusTask: (Task) -> Void
     var onPlanTask: (Task) -> Void
@@ -17,6 +18,13 @@ struct TodayTimelineView: View {
         }
     }
 
+    private var showsHourMarkers: Bool {
+        if case .placing = interactionState {
+            return true
+        }
+        return false
+    }
+
     private var nextStartLookup: [String: Date] {
         var lookup: [String: Date] = [:]
         let sorted = sortedLayouts
@@ -27,6 +35,19 @@ struct TodayTimelineView: View {
             }
         }
         return lookup
+    }
+
+    private var timelineBounds: (start: Date, end: Date) {
+        guard let first = sortedLayouts.first else { return dayBounds }
+        let earliestStart = first.item.start
+        let latestEnd = sortedLayouts.reduce(first.item.end) { partialResult, layout in
+            max(partialResult, layout.item.end)
+        }
+        if latestEnd <= earliestStart {
+            let fallbackEnd = earliestStart.addingTimeInterval(15 * 60)
+            return (start: earliestStart, end: fallbackEnd)
+        }
+        return (start: earliestStart, end: latestEnd)
     }
 
     var body: some View {
@@ -42,6 +63,8 @@ struct TodayTimelineView: View {
                     layouts: sortedLayouts,
                     nextStartLookup: nextStartLookup,
                     dayBounds: dayBounds,
+                    timelineBounds: timelineBounds,
+                    showsHourMarkers: showsHourMarkers,
                     onToggleTask: onToggleTask,
                     onFocusTask: onFocusTask,
                     onPlanTask: onPlanTask
@@ -58,21 +81,44 @@ private struct TimelineCanvasView: View {
     let layouts: [TimelineScheduleLayout]
     let nextStartLookup: [String: Date]
     let dayBounds: (start: Date, end: Date)
+    let timelineBounds: (start: Date, end: Date)
+    let showsHourMarkers: Bool
     var onToggleTask: (Task) -> Void
     var onFocusTask: (Task) -> Void
     var onPlanTask: (Task) -> Void
 
     private let hourHeight: CGFloat = 60
-    private var totalMinutes: Double {
-        dayBounds.end.timeIntervalSince(dayBounds.start) / 60
+    private var visibleMinutes: Double {
+        max(1, timelineBounds.end.timeIntervalSince(timelineBounds.start) / 60)
+    }
+    private var basePointsPerMinute: CGFloat { hourHeight / 60 }
+    private var scaledHeight: CGFloat {
+        CGFloat(visibleMinutes) * basePointsPerMinute
+    }
+    private var requiredHeight: CGFloat {
+        layouts.reduce(0) { current, layout in
+            let bottom = blockBottom(for: layout, scale: basePointsPerMinute)
+            return max(current, bottom)
+        }
     }
     private var totalHeight: CGFloat {
-        CGFloat(totalMinutes) * (hourHeight / 60)
+        if layouts.isEmpty {
+            return scaledHeight
+        }
+        return max(scaledHeight, requiredHeight)
+    }
+    private var pointsPerMinute: CGFloat {
+        guard visibleMinutes > 0 else { return basePointsPerMinute }
+        return totalHeight / CGFloat(visibleMinutes)
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            TimelineAxisView(bounds: dayBounds, height: totalHeight)
+            TimelineAxisView(
+                bounds: timelineBounds,
+                height: totalHeight,
+                showsHourMarkers: showsHourMarkers
+            )
             GeometryReader { geometry in
                 let width = geometry.size.width
                 ZStack(alignment: .topLeading) {
@@ -102,12 +148,12 @@ private struct TimelineCanvasView: View {
     }
 
     private func offset(for date: Date) -> CGFloat {
-        let minutes = date.timeIntervalSince(dayBounds.start) / 60
-        return CGFloat(minutes) * (hourHeight / 60)
+        let minutes = date.timeIntervalSince(timelineBounds.start) / 60
+        return CGFloat(minutes) * pointsPerMinute
     }
 
     private func height(for item: TimelineScheduleItem) -> CGFloat {
-        CGFloat(item.durationMinutes) * (hourHeight / 60)
+        CGFloat(item.durationMinutes) * pointsPerMinute
     }
 
     private func laneWidth(for layout: TimelineScheduleLayout, totalWidth: CGFloat) -> CGFloat {
@@ -116,10 +162,20 @@ private struct TimelineCanvasView: View {
     }
 
     private func freeTime(for layout: TimelineScheduleLayout) -> String? {
-        guard let nextStart = nextStartLookup[layout.id] else { return nil }
-        let gap = nextStart.timeIntervalSince(layout.item.end)
-        guard gap >= 60 else { return nil }
+        let nextStart = nextStartLookup[layout.id]
+        let comparisonDate = nextStart ?? dayBounds.end
+        let gap = comparisonDate.timeIntervalSince(layout.item.end)
+        guard gap > 0 else { return nil }
         let totalMinutes = Int(gap / 60)
+        guard let formatted = formattedDuration(minutes: totalMinutes) else { return nil }
+        if nextStart == nil {
+            return "\(formatted) until end of day"
+        }
+        return "\(formatted) free time"
+    }
+
+    private func formattedDuration(minutes totalMinutes: Int) -> String? {
+        guard totalMinutes > 0 else { return nil }
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
         var components: [String] = []
@@ -127,30 +183,75 @@ private struct TimelineCanvasView: View {
             components.append("\(hours)h")
         }
         if minutes > 0 {
-            components.append("\(minutes)m")
+            components.append("\(minutes) min")
         }
         guard !components.isEmpty else { return nil }
-        return "\(components.joined(separator: " ")) free time"
+        return components.joined(separator: " ")
+    }
+
+    private func blockBottom(for layout: TimelineScheduleLayout, scale: CGFloat) -> CGFloat {
+        let minutes = layout.item.start.timeIntervalSince(timelineBounds.start) / 60
+        let startOffset = CGFloat(minutes) * scale
+        let blockHeight = max(44, CGFloat(layout.item.durationMinutes) * scale)
+        return startOffset + blockHeight
     }
 }
 
 private struct TimelineAxisView: View {
     let bounds: (start: Date, end: Date)
     let height: CGFloat
+    let showsHourMarkers: Bool
+
+    private let calendar = Calendar.current
+
+    private var totalMinutes: Double {
+        bounds.end.timeIntervalSince(bounds.start) / 60
+    }
+
+    private var hourMarkers: [Date] {
+        guard showsHourMarkers else { return [] }
+        var markers: [Date] = []
+        var current = bounds.start
+        while current <= bounds.end {
+            markers.append(current)
+            guard let next = calendar.date(byAdding: .hour, value: 1, to: current) else { break }
+            if next == current { break }
+            current = next
+        }
+        return markers
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(bounds.start.formatted(date: .omitted, time: .shortened))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Rectangle()
+        ZStack(alignment: .topTrailing) {
+            Capsule()
                 .fill(Color(.systemGray5))
-                .frame(width: 2, height: height - 32)
-            Text(bounds.end.formatted(date: .omitted, time: .shortened))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .frame(width: 2, height: height)
+
+            if showsHourMarkers {
+                ForEach(hourMarkers, id: \.self) { marker in
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(marker.formatted(date: .omitted, time: .shortened))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Rectangle()
+                            .fill(Color(.systemGray4))
+                            .frame(width: 32, height: 1)
+                            .opacity(0.7)
+                    }
+                    .offset(y: markerOffset(for: marker))
+                }
+            }
         }
-        .frame(width: 60, alignment: .leading)
+        .frame(width: showsHourMarkers ? 84 : 24, height: height, alignment: .topTrailing)
+    }
+
+    private func markerOffset(for date: Date) -> CGFloat {
+        let minutes = date.timeIntervalSince(bounds.start) / 60
+        guard totalMinutes > 0 else { return 0 }
+        let pointsPerMinute = height / CGFloat(totalMinutes)
+        let offset = CGFloat(minutes) * pointsPerMinute
+        let clamped = min(max(offset - 10, 0), height - 24)
+        return clamped
     }
 }
 
