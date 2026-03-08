@@ -8,6 +8,8 @@ struct TaskRowView: View {
     var onPlan: (() -> Void)?
     var onDelete: (() -> Void)?
 
+    var isDraggable: Bool = false
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Button(action: { onToggle?() }) {
@@ -73,5 +75,10 @@ struct TaskRowView: View {
             }
         }
         .padding(.vertical, 8)
+        .if(isDraggable) { view in
+            view.draggable(TaskDragItem(id: task.id)) {
+                Text(task.title)
+            }
+        }
     }
 }

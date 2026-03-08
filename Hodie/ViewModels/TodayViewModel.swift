@@ -77,4 +77,20 @@ final class TodayViewModel: ObservableObject {
             }
         }
     }
+
+    func task(with id: UUID) -> Task? {
+        plan.scheduledTasks.first { $0.id == id }
+            ?? plan.flexibleTasks.first { $0.id == id }
+    }
+
+    func rescheduleTask(id: UUID, to start: Date) {
+        guard let task = task(with: id) else { return }
+        let duration = task.estimatedDurationMinutes ?? 60
+        let interval = DateInterval.from(start: start, durationMinutes: duration)
+        taskStore.plan(task, for: selectedDate, interval: interval)
+        _Concurrency.Task { [weak self] in
+            guard let self else { return }
+            await self.refresh()
+        }
+    }
 }

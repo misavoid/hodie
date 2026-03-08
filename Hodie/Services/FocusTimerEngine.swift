@@ -58,10 +58,9 @@ final class FocusTimerEngine: ObservableObject {
         invalidateTimer()
         lastFireDate = .now
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            _Concurrency.Task { [weak self] in
-                await MainActor.run {
-                    self?.tick()
-                }
+            guard let self else { return }
+            _Concurrency.Task { @MainActor in
+                self.tick()
             }
         }
     }

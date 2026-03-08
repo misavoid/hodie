@@ -12,6 +12,7 @@ struct TodayView: View {
     @ObservedObject var focusController: FocusController
     @State private var editingTask: Task?
     @State private var showingInboxPicker = false
+    @State private var showCombinedSchedule = false
     @State private var showAllDayEvents = false
 
     var body: some View {
@@ -20,49 +21,54 @@ struct TodayView: View {
                 Section {
                     summaryCard
                 }
-                Section("Calendar") {
-                    calendarContent
+                Section {
+                    Picker("Schedule View", selection: $showCombinedSchedule) {
+                        Text("Timeline").tag(true)
+                        Text("Separate").tag(false)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                Section("Scheduled") {
-                    if viewModel.plan.scheduledTasks.isEmpty {
-                        Text("No scheduled blocks yet.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(viewModel.plan.scheduledTasks) { task in
-                            TaskRowView(
-                                task: task,
-                                showTime: true,
-                                onToggle: { viewModel.toggleCompletion(task) },
-                                onFocus: { focusController.begin(for: task) },
-                                onPlan: { editingTask = task }
-                            )
+                if showCombinedSchedule {
+                    Section("Schedule") {
+                        plannedFlexInline(draggable: true)
+                            .padding(.bottom, 12)
+
+                        CombinedScheduleView(
+                            date: viewModel.selectedDate,
+                            events: viewModel.plan.calendarEvents,
+                            tasks: viewModel.plan.scheduledTasks
+                        ) { id, start in
+                            viewModel.rescheduleTask(id: id, to: start)
                         }
-                        .onMove { indices, newOffset in
-                            var tasks = viewModel.plan.scheduledTasks
-                            tasks.move(fromOffsets: indices, toOffset: newOffset)
-                            viewModel.reorder(tasks: tasks)
+                        .listRowInsets(EdgeInsets())
+                    }
+                } else {
+                    Section("Calendar") {
+                        calendarContent
+                    }
+                    Section("Scheduled") {
+                        if viewModel.plan.scheduledTasks.isEmpty {
+                            Text("No scheduled blocks yet.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(viewModel.plan.scheduledTasks) { task in
+                                TaskRowView(
+                                    task: task,
+                                    showTime: true,
+                                    onToggle: { viewModel.toggleCompletion(task) },
+                                    onFocus: { focusController.begin(for: task) },
+                                    onPlan: { editingTask = task },
+                                    isDraggable: true
+                                )
+                            }
+                            .onMove { indices, newOffset in
+                                var tasks = viewModel.plan.scheduledTasks
+                                tasks.move(fromOffsets: indices, toOffset: newOffset)
+                                viewModel.reorder(tasks: tasks)
+                            }
                         }
                     }
-                }
-                Section("Planned flex") {
-                    if viewModel.plan.flexibleTasks.isEmpty {
-                        Text("Select from inbox to plan your day.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(viewModel.plan.flexibleTasks) { task in
-                            TaskRowView(
-                                task: task,
-                                onToggle: { viewModel.toggleCompletion(task) },
-                                onFocus: { focusController.begin(for: task) },
-                                onPlan: { editingTask = task }
-                            )
-                        }
-                        .onMove { indices, newOffset in
-                            var tasks = viewModel.plan.flexibleTasks
-                            tasks.move(fromOffsets: indices, toOffset: newOffset)
-                            viewModel.reorder(tasks: tasks)
-                        }
-                    }
+                    plannedFlexSection(draggable: false)
                 }
                 Section("Completed") {
                     if viewModel.plan.completedTasks.isEmpty {
@@ -105,6 +111,55 @@ struct TodayView: View {
         }
     }
 
+    @ViewBuilder
+    private func plannedFlexSection(draggable: Bool) -> some View {
+        Section("Planned flex") {
+            plannedFlexContent(draggable: draggable)
+        }
+    }
+
+    @ViewBuilder
+    private func plannedFlexInline(draggable: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Planned flex")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            plannedFlexContent(draggable: draggable)
+        }
+    }
+
+    @ViewBuilder
+    private func plannedFlexContent(draggable: Bool) -> some View {
+        if viewModel.plan.flexibleTasks.isEmpty {
+            Button {
+                showingInboxPicker = true
+            } label: {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Select from inbox to plan your day")
+                    Spacer()
+                }
+                .foregroundStyle(Color.accentColor)
+            }
+            .buttonStyle(.plain)
+        } else {
+            ForEach(viewModel.plan.flexibleTasks) { task in
+                TaskRowView(
+                    task: task,
+                    onToggle: { viewModel.toggleCompletion(task) },
+                    onFocus: { focusController.begin(for: task) },
+                    onPlan: { editingTask = task },
+                    isDraggable: draggable
+                )
+            }
+            .onMove { indices, newOffset in
+                var tasks = viewModel.plan.flexibleTasks
+                tasks.move(fromOffsets: indices, toOffset: newOffset)
+                viewModel.reorder(tasks: tasks)
+            }
+        }
+    }
+
     private var summaryCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(viewModel.selectedDate, style: .date)
@@ -116,6 +171,7 @@ struct TodayView: View {
                 statBlock(label: "Focus", value: viewModel.plan.hasFocusHistory ? "Active" : "—")
             }
             calendarStatusView
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 16)
     }
@@ -138,12 +194,13 @@ struct TodayView: View {
                 Label("Connect Calendar", systemImage: "calendar.badge.plus")
             }
             .buttonStyle(.borderedProminent)
-            .padding(.top, 4)
+            .padding(.top, 8)
         case .granted:
             Label("Calendar connected", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
                 .font(.subheadline)
-                .padding(.top, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 8)
         case .denied:
             VStack(alignment: .leading, spacing: 8) {
                 Label("Calendar access denied", systemImage: "exclamationmark.triangle")
@@ -152,12 +209,11 @@ struct TodayView: View {
                     openCalendarSettings()
                 }
                 .buttonStyle(.bordered)
-                .padding(.top, 4)
             }
-            .padding(.top, 4)
+            .padding(.top, 8)
         case .unknown:
             ProgressView("Checking calendar access…")
-                .padding(.top, 4)
+                .padding(.top, 8)
         }
     }
 
@@ -181,9 +237,14 @@ struct TodayView: View {
                         }
                         .padding(.top, 4)
                     } label: {
-                        Label("All-day events (\(allDayEvents.count))", systemImage: "tray.full")
-                            .font(.subheadline)
-                            .bold()
+                            HStack(spacing: 8) {
+                                Image(systemName: "tray.full")
+                                    .font(.body)
+                                Text("All-day events (\(allDayEvents.count))")
+                                    .font(.subheadline.bold())
+                                Spacer()
+                            }
+                        .padding(.vertical, 6)
                     }
                     .padding(.bottom, 8)
                 }
