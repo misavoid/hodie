@@ -9,6 +9,8 @@ struct TodayTimelineView: View {
     var onFocusTask: (Task) -> Void
     var onPlanTask: (Task) -> Void
 
+    private let anchorSpacing: CGFloat = 24
+
     private var sortedLayouts: [TimelineScheduleLayout] {
         layouts.sorted { lhs, rhs in
             if lhs.item.start == rhs.item.start {
@@ -52,12 +54,13 @@ struct TodayTimelineView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
                 TimelineAnchorHeader(
                     label: "Start of day",
                     time: dayBounds.start,
                     allDayEvents: allDayEvents
                 )
+                .padding(.bottom, anchorSpacing)
 
                 TimelineCanvasView(
                     layouts: sortedLayouts,
@@ -69,6 +72,7 @@ struct TodayTimelineView: View {
                     onFocusTask: onFocusTask,
                     onPlanTask: onPlanTask
                 )
+                .padding(.bottom, anchorSpacing)
 
                 TimelineAnchorFooter(label: "End of day", time: dayBounds.end)
             }

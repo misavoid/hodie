@@ -47,6 +47,9 @@ struct TaskRowView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+                if task.isReminderImport {
+                    ReminderOriginBadge()
+                }
             }
 
             VStack(spacing: 6) {
@@ -80,5 +83,20 @@ struct TaskRowView: View {
                 Text(task.title)
             }
         }
+    }
+}
+
+private struct ReminderOriginBadge: View {
+    var body: some View {
+        Label("Reminders", systemImage: "arrow.triangle.turn.up.right.circle.fill")
+            .font(.caption2)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .foregroundStyle(.secondary)
+            .background(
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.12))
+            )
+            .accessibilityLabel("Imported from Reminders")
     }
 }

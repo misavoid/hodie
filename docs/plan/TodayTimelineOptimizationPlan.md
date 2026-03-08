@@ -45,5 +45,6 @@ Introduce `TimelineInteractionState` inside `TodayViewModel`:
 - Narrowed the idle axis footprint (24 pt) while expanding to 84 pt when markers are visible, which gives timeline cards more breathing room without sacrificing readability when choosing a start time.
 - Timeline canvas now trims its vertical span to the first/last scheduled blocks so there’s no empty gutter before breakfast or after the final task; the axis reuses those compressed bounds while free-time summaries communicate any gaps.
 - Free-time footer generation now covers every scheduled block (including the last one, which now reports `Xm until end of day`), eliminating the missing labels seen in QA screenshots.
+- Added a symmetric 24 pt buffer around the compressed timeline so the “Start of day” and “End of day” anchors now sit the same distance from the first/last cards, resolving the lingering asymmetry call-out while keeping the canvas length tied to actual scheduled blocks.
 - Follow-ups: cover the axis toggle in a snapshot/UI test, and consider adding the optional `.confirming` interaction state once the time picker animation work resumes.
 - New follow-ups: add regression coverage for the compressed timeline bounds (e.g., ensure all-day-empty states still render a reasonable placeholder) and verify localized strings for “until end of day.”

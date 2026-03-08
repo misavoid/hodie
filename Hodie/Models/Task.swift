@@ -132,3 +132,10 @@ struct RecurrenceRule: Codable, Hashable {
         self.interval = max(1, interval)
     }
 }
+
+extension Task {
+    var isReminderImport: Bool {
+        guard let source else { return false }
+        return source.hasPrefix("reminder:")
+    }
+}

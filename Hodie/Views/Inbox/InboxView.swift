@@ -36,6 +36,7 @@ struct InboxView: View {
                 }
 
                 Section("Inbox") {
+                    RemindersInboxSummaryRow(count: viewModel.reminderInboxCount)
                     if viewModel.inboxTasks.isEmpty {
                         ContentUnavailableView("Inbox is clear", systemImage: "sparkles", description: Text("Capture tasks above to start."))
                     } else {
@@ -82,5 +83,39 @@ struct InboxView: View {
                 viewModel.refreshInbox()
             }
         }
+    }
+}
+
+private struct RemindersInboxSummaryRow: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Reminders inbox")
+                        .font(.headline)
+                    Text("Imported reminders waiting to plan")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } icon: {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .symbolRenderingMode(.hierarchical)
+                    .font(.title3)
+            }
+            Spacer()
+            Text(count, format: .number)
+                .font(.footnote)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(.thinMaterial)
+                .clipShape(Capsule())
+                .accessibilityLabel("\(count) reminders awaiting triage")
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Reminders inbox, \(count) reminders waiting")
     }
 }

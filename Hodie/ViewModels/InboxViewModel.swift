@@ -66,4 +66,12 @@ final class InboxViewModel: ObservableObject {
     func refreshInbox() {
         inboxTasks = taskStore.inboxTasks()
     }
+
+    var reminderTasks: [Task] {
+        inboxTasks.filter { $0.isReminderImport }
+    }
+
+    var reminderInboxCount: Int {
+        reminderTasks.count
+    }
 }
