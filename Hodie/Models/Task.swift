@@ -138,4 +138,12 @@ extension Task {
         guard let source else { return false }
         return source.hasPrefix("reminder:")
     }
+
+    static func reminderSourcePrefix(for calendarID: String) -> String {
+        "reminder:\(calendarID):"
+    }
+
+    static func reminderSourceID(calendarID: String, reminderID: String) -> String {
+        reminderSourcePrefix(for: calendarID) + reminderID
+    }
 }

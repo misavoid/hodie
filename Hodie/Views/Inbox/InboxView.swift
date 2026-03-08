@@ -4,8 +4,11 @@ import SwiftData
 struct InboxView: View {
     @ObservedObject var viewModel: InboxViewModel
     @ObservedObject var focusController: FocusController
+    @ObservedObject var remindersProvider: RemindersProvider
+    @ObservedObject var remindersSync: RemindersSyncEngine
     @State private var editingTask: Task?
     @State private var includeDueDate = false
+    @State private var showingRemindersSheet = false
 
     var body: some View {
         NavigationStack {
@@ -36,7 +39,18 @@ struct InboxView: View {
                 }
 
                 Section("Inbox") {
-                    RemindersInboxSummaryRow(count: viewModel.reminderInboxCount)
+                    Button {
+                        showingRemindersSheet = true
+                    } label: {
+                        RemindersInboxSummaryRow(
+                            count: viewModel.reminderInboxCount,
+                            authorization: remindersProvider.authorization,
+                            selectedListName: remindersSync.selectedListName,
+                            syncState: remindersSync.syncState
+                        )
+                    }
+                    .buttonStyle(.plain)
+
                     if viewModel.inboxTasks.isEmpty {
                         ContentUnavailableView("Inbox is clear", systemImage: "sparkles", description: Text("Capture tasks above to start."))
                     } else {
@@ -82,12 +96,25 @@ struct InboxView: View {
             .task {
                 viewModel.refreshInbox()
             }
+            .task {
+                await remindersSync.syncIfNeeded()
+            }
+            .sheet(isPresented: $showingRemindersSheet) {
+                RemindersSettingsView(provider: remindersProvider, syncEngine: remindersSync)
+                    .presentationDetents([.medium, .large])
+            }
+            .onChange(of: remindersSync.lastSyncedAt) { _, _ in
+                viewModel.refreshInbox()
+            }
         }
     }
 }
 
 private struct RemindersInboxSummaryRow: View {
     let count: Int
+    let authorization: RemindersProvider.AuthorizationState
+    let selectedListName: String?
+    let syncState: RemindersSyncEngine.SyncState
 
     var body: some View {
         HStack(spacing: 12) {
@@ -95,7 +122,7 @@ private struct RemindersInboxSummaryRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Reminders inbox")
                         .font(.headline)
-                    Text("Imported reminders waiting to plan")
+                    Text(statusText)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -105,17 +132,39 @@ private struct RemindersInboxSummaryRow: View {
                     .font(.title3)
             }
             Spacer()
-            Text(count, format: .number)
-                .font(.footnote)
-                .fontWeight(.semibold)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(.thinMaterial)
-                .clipShape(Capsule())
-                .accessibilityLabel("\(count) reminders awaiting triage")
+            if case .syncing = syncState {
+                ProgressView()
+                    .progressViewStyle(.circular)
+            } else {
+                Text(count, format: .number)
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(.thinMaterial)
+                    .clipShape(Capsule())
+                    .accessibilityLabel("\(count) reminders awaiting triage")
+            }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Reminders inbox, \(count) reminders waiting")
+    }
+
+    private var statusText: String {
+        switch authorization {
+        case .needsPermission:
+            return "Connect to Apple Reminders"
+        case .denied:
+            return "Permission denied"
+        case .unknown:
+            return "Status unknown"
+        case .granted:
+            if let selectedListName, !selectedListName.isEmpty {
+                return "Syncing \"\(selectedListName)\""
+            } else {
+                return "Select a list to import"
+            }
+        }
     }
 }

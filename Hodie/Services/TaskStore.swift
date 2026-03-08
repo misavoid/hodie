@@ -127,6 +127,58 @@ final class TaskStore {
         saveContext()
     }
 
+    func importReminders(_ reminders: [RemindersProvider.ReminderItem], calendarID: String) {
+        let descriptor = FetchDescriptor<Task>()
+        let tasks = (try? context.fetch(descriptor)) ?? []
+        let prefix = Task.reminderSourcePrefix(for: calendarID)
+
+        var existing: [String: Task] = Dictionary(uniqueKeysWithValues: tasks.compactMap { task in
+            guard let source = task.source, source.hasPrefix(prefix) else { return nil }
+            return (source, task)
+        })
+
+        var seenSources: Set<String> = []
+
+        for reminder in reminders {
+            let sourceID = Task.reminderSourceID(calendarID: calendarID, reminderID: reminder.id)
+            seenSources.insert(sourceID)
+
+            if let task = existing[sourceID] {
+                task.title = reminder.title
+                task.notes = reminder.notes
+                task.dueDate = reminder.dueDate
+                task.source = sourceID
+
+                if reminder.isCompleted {
+                    task.markCompleted(date: reminder.completionDate ?? task.completedAt ?? Date())
+                } else {
+                    task.status = .inbox
+                    task.completedAt = nil
+                }
+                task.updatedAt = .now
+            } else {
+                let newTask = Task(
+                    title: reminder.title,
+                    notes: reminder.notes,
+                    status: reminder.isCompleted ? .completed : .inbox,
+                    dueDate: reminder.dueDate,
+                    source: sourceID
+                )
+                if reminder.isCompleted {
+                    newTask.completedAt = reminder.completionDate ?? Date()
+                }
+                context.insert(newTask)
+                existing[sourceID] = newTask
+            }
+        }
+
+        for (source, task) in existing where !seenSources.contains(source) {
+            context.delete(task)
+        }
+
+        saveContext()
+    }
+
     func saveContext() {
         try? context.save()
     }

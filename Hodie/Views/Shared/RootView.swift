@@ -31,7 +31,12 @@ struct RootView: View {
         TabView {
             TodayView(viewModel: todayViewModel, focusController: environment.focusController)
                 .tabItem { Label("Today", systemImage: "sun.max") }
-            InboxView(viewModel: inboxViewModel, focusController: environment.focusController)
+            InboxView(
+                viewModel: inboxViewModel,
+                focusController: environment.focusController,
+                remindersProvider: environment.remindersProvider,
+                remindersSync: environment.remindersSync
+            )
                 .tabItem { Label("Inbox", systemImage: "tray") }
             FocusScreen(controller: environment.focusController)
                 .tabItem { Label("Focus", systemImage: "timer") }
@@ -47,7 +52,12 @@ struct RootView: View {
         case .today, .none:
             TodayView(viewModel: todayViewModel, focusController: environment.focusController)
         case .inbox:
-            InboxView(viewModel: inboxViewModel, focusController: environment.focusController)
+            InboxView(
+                viewModel: inboxViewModel,
+                focusController: environment.focusController,
+                remindersProvider: environment.remindersProvider,
+                remindersSync: environment.remindersSync
+            )
         case .focus:
             FocusScreen(controller: environment.focusController)
         case .review:

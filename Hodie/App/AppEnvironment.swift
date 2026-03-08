@@ -13,6 +13,8 @@ final class AppEnvironment: ObservableObject {
     let reviewCoordinator: ReviewCoordinator
     let focusTimer: FocusTimerEngine
     let focusController: FocusController
+    let remindersProvider: RemindersProvider
+    let remindersSync: RemindersSyncEngine
 
     init(container: ModelContainer) {
         self.container = container
@@ -24,5 +26,7 @@ final class AppEnvironment: ObservableObject {
         self.reviewCoordinator = ReviewCoordinator(taskStore: taskStore, focusStore: focusStore)
         self.focusTimer = FocusTimerEngine()
         self.focusController = FocusController(focusStore: focusStore, timer: focusTimer)
+        self.remindersProvider = RemindersProvider()
+        self.remindersSync = RemindersSyncEngine(provider: remindersProvider, taskStore: taskStore)
     }
 }

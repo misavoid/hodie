@@ -6,6 +6,8 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>NSRemindersUsageDescription</key>
+	<string>Hodíe imports your Apple Reminders so Siri captures land in your Hodíe inbox.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Hodíe uses your calendars to show today’s events so you can plan tasks around real commitments.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
