@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		15E319EF2F5DE2E800919531 /* AGENTS.md in Resources */ = {isa = PBXBuildFile; fileRef = 15E319EE2F5DE2E800919531 /* AGENTS.md */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		15E319D02F5DE24700919531 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,7 @@
 		15E319BE2F5DE24600919531 /* Hodie.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hodie.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		15E319CF2F5DE24700919531 /* HodieTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HodieTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		15E319D92F5DE24700919531 /* HodieUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HodieUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		15E319EE2F5DE2E800919531 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -56,6 +61,11 @@
 		15E319DC2F5DE24700919531 /* HodieUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = HodieUITests;
+			sourceTree = "<group>";
+		};
+		15E319ED2F5DE2D200919531 /* docs */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = docs;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -88,10 +98,12 @@
 		15E319B52F5DE24600919531 = {
 			isa = PBXGroup;
 			children = (
+				15E319ED2F5DE2D200919531 /* docs */,
 				15E319C02F5DE24600919531 /* Hodie */,
 				15E319D22F5DE24700919531 /* HodieTests */,
 				15E319DC2F5DE24700919531 /* HodieUITests */,
 				15E319BF2F5DE24600919531 /* Products */,
+				15E319EE2F5DE2E800919531 /* AGENTS.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -122,6 +134,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				15E319C02F5DE24600919531 /* Hodie */,
+				15E319ED2F5DE2D200919531 /* docs */,
 			);
 			name = Hodie;
 			packageProductDependencies = (
@@ -225,6 +238,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				15E319EF2F5DE2E800919531 /* AGENTS.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,41 +1,78 @@
-//
-//  HodieUITests.swift
-//  HodieUITests
-//
-//  Created by Misa Nthrop on 08.03.26.
-//
-
 import XCTest
 
 final class HodieUITests: XCTestCase {
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testCapturePlanFocusFlow() throws {
         let app = XCUIApplication()
+        app.launchArguments.append("UI-TESTING")
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        tapTab(app: app, label: "Inbox")
+
+        let titleField = app.textFields["Task title"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 2))
+        titleField.tap()
+        titleField.typeText("Focus Task")
+        app.buttons["Add to Inbox"].tap()
+
+        tapTab(app: app, label: "Today")
+        app.buttons["Plan from Inbox"].tap()
+        let taskButton = app.buttons["Focus Task"]
+        XCTAssertTrue(taskButton.waitForExistence(timeout: 2))
+        taskButton.tap()
+        app.buttons["Save"].tap()
+
+        let plannedCell = app.staticTexts["Focus Task"]
+        XCTAssertTrue(plannedCell.waitForExistence(timeout: 2))
+
+        let focusButton = app.buttons["Start focus for Focus Task"]
+        XCTAssertTrue(focusButton.waitForExistence(timeout: 2))
+        focusButton.tap()
+
+        let doneButton = app.buttons["Done"]
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 2))
+        doneButton.tap()
+
+        tapTab(app: app, label: "Review")
+        XCTAssertTrue(app.staticTexts["Completed: 1"].waitForExistence(timeout: 2))
     }
 
     @MainActor
-    func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
-        measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+    func testReviewRolloverFlow() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("UI-TESTING")
+        app.launch()
+
+        tapTab(app: app, label: "Inbox")
+        let titleField = app.textFields["Task title"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 2))
+        titleField.tap()
+        titleField.typeText("Rollover Task")
+        app.buttons["Add to Inbox"].tap()
+
+        tapTab(app: app, label: "Today")
+        app.buttons["Plan from Inbox"].tap()
+        let taskButton = app.buttons["Rollover Task"]
+        XCTAssertTrue(taskButton.waitForExistence(timeout: 2))
+        taskButton.tap()
+        app.buttons["Save"].tap()
+
+        tapTab(app: app, label: "Review")
+        XCTAssertTrue(app.staticTexts["Unfinished: 1"].waitForExistence(timeout: 2))
+        app.buttons["Rollover unfinished"].tap()
+        app.buttons["Move to tomorrow"].tap()
+        XCTAssertTrue(app.staticTexts["Unfinished: 0"].waitForExistence(timeout: 2))
+    }
+
+    private func tapTab(app: XCUIApplication, label: String) {
+        let tabButton = app.tabBars.buttons[label]
+        if tabButton.waitForExistence(timeout: 1) {
+            tabButton.tap()
         }
     }
 }
