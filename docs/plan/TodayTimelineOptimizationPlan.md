@@ -52,3 +52,4 @@ Introduce `TimelineInteractionState` inside `TodayViewModel`:
 ## Progress — 2026-03-09
 - Added a lane-aware spacing pass in `TimelineCanvasView` so back-to-back items (same lane, matching end/start times) receive an automatic 8 pt offset, which keeps the cards from visually touching on both compact and regular timelines.
 - Appended a dedicated 32 pt inset after the canvas stack so the “End of day” marker clears the final block consistently; the footer now stays visually detached even when the last card is tall or ends near 10 PM.
+- Follow-up: reworked the placement math to iterate on lane bottoms using the real `pointsPerMinute`, so contiguous cards now reserve a fixed 10 pt gap even after the timeline stretches for minimum block heights or dynamic type; confirmed via a quick script mirroring the placement helper (two one-hour blocks starting at 9:15/10:15 now report a 10 pt separation).

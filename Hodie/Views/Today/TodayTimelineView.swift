@@ -92,9 +92,8 @@ private struct TimelineCanvasView: View {
     var onPlanTask: (Task) -> Void
 
     private let hourHeight: CGFloat = 60
-    private let consecutiveEventSpacing: CGFloat = 8
+    private let consecutiveEventSpacing: CGFloat = 10
     private let endOfDayInset: CGFloat = 32
-    private let backToBackTolerance: TimeInterval = 1
     private var visibleMinutes: Double {
         max(1, timelineBounds.end.timeIntervalSince(timelineBounds.start) / 60)
     }
@@ -102,63 +101,27 @@ private struct TimelineCanvasView: View {
     private var scaledHeight: CGFloat {
         CGFloat(visibleMinutes) * basePointsPerMinute
     }
-    private var requiredHeight: CGFloat {
-        let spacingOffsets = consecutiveSpacingOffsets
-        return layouts.reduce(0) { current, layout in
-            let spacing = spacingOffsets[layout.id] ?? 0
-            let bottom = blockBottom(for: layout, scale: basePointsPerMinute, spacing: spacing)
-            return max(current, bottom)
-        }
-    }
-    private var totalHeight: CGFloat {
-        if layouts.isEmpty {
-            return scaledHeight
-        }
-        return max(scaledHeight, requiredHeight)
-    }
-    private var pointsPerMinute: CGFloat {
-        guard visibleMinutes > 0 else { return basePointsPerMinute }
-        return totalHeight / CGFloat(visibleMinutes)
-    }
-    private var consecutiveSpacingOffsets: [String: CGFloat] {
-        var offsets: [String: CGFloat] = [:]
-        var laneLastEnd: [Int: Date] = [:]
-        var laneAccumulatedSpacing: [Int: CGFloat] = [:]
-
-        for layout in layouts {
-            let lane = layout.laneIndex
-            let lastEnd = laneLastEnd[lane]
-            var spacing = laneAccumulatedSpacing[lane] ?? 0
-
-            if let lastEnd, layout.item.start.timeIntervalSince(lastEnd) <= backToBackTolerance {
-                spacing += consecutiveEventSpacing
-            }
-
-            offsets[layout.id] = spacing
-            laneAccumulatedSpacing[lane] = spacing
-            laneLastEnd[lane] = layout.item.end
-        }
-
-        return offsets
+    private var layoutMetrics: LayoutMetrics {
+        computeLayoutMetrics()
     }
 
     var body: some View {
-        let spacingOffsets = consecutiveSpacingOffsets
+        let metrics = layoutMetrics
 
         return VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
                 TimelineAxisView(
                     bounds: timelineBounds,
-                    height: totalHeight,
+                    height: metrics.totalHeight,
                     showsHourMarkers: showsHourMarkers
                 )
                 GeometryReader { geometry in
                     let width = geometry.size.width
                     ZStack(alignment: .topLeading) {
                         ForEach(layouts) { layout in
-                            let spacing = spacingOffsets[layout.id] ?? 0
-                            let startOffset = offset(for: layout.item.start) + spacing
-                            let blockHeight = max(44, height(for: layout.item))
+                            let startOffset = metrics.startOffsets[layout.id]
+                                ?? rawOffset(for: layout.item.start, pointsPerMinute: metrics.pointsPerMinute)
+                            let blockHeight = blockHeight(for: layout.item, pointsPerMinute: metrics.pointsPerMinute)
                             let laneWidth = laneWidth(for: layout, totalWidth: width)
                             let xPosition = CGFloat(layout.laneIndex) * (laneWidth + 8)
                             TimelineBlockView(
@@ -176,24 +139,14 @@ private struct TimelineCanvasView: View {
                         }
                     }
                 }
-                .frame(height: totalHeight)
+                .frame(height: metrics.totalHeight)
             }
-            .frame(height: totalHeight)
+            .frame(height: metrics.totalHeight)
 
             Color.clear
                 .frame(height: endOfDayInset)
         }
     }
-
-    private func offset(for date: Date) -> CGFloat {
-        let minutes = date.timeIntervalSince(timelineBounds.start) / 60
-        return CGFloat(minutes) * pointsPerMinute
-    }
-
-    private func height(for item: TimelineScheduleItem) -> CGFloat {
-        CGFloat(item.durationMinutes) * pointsPerMinute
-    }
-
     private func laneWidth(for layout: TimelineScheduleLayout, totalWidth: CGFloat) -> CGFloat {
         let spacing = CGFloat(layout.totalLanes - 1) * 8
         return (totalWidth - spacing) / CGFloat(layout.totalLanes)
@@ -227,11 +180,80 @@ private struct TimelineCanvasView: View {
         return components.joined(separator: " ")
     }
 
-    private func blockBottom(for layout: TimelineScheduleLayout, scale: CGFloat, spacing: CGFloat) -> CGFloat {
-        let minutes = layout.item.start.timeIntervalSince(timelineBounds.start) / 60
-        let startOffset = CGFloat(minutes) * scale + spacing
-        let blockHeight = max(44, CGFloat(layout.item.durationMinutes) * scale)
-        return startOffset + blockHeight
+    private func computeLayoutMetrics() -> LayoutMetrics {
+        guard !layouts.isEmpty else {
+            return LayoutMetrics(
+                pointsPerMinute: basePointsPerMinute,
+                totalHeight: scaledHeight,
+                startOffsets: [:]
+            )
+        }
+
+        var height = max(scaledHeight, 44)
+        var placement: LayoutPlacement = ([:], height)
+        let maxIterations = 6
+
+        for _ in 0..<maxIterations {
+            let ppm = pointsPerMinute(forHeight: height)
+            placement = placements(pointsPerMinute: ppm)
+            let newHeight = max(scaledHeight, placement.maxBottom)
+            if abs(newHeight - height) < 0.5 {
+                return LayoutMetrics(pointsPerMinute: ppm, totalHeight: newHeight, startOffsets: placement.offsets)
+            }
+            height = newHeight
+        }
+
+        let finalPPM = pointsPerMinute(forHeight: height)
+        let finalPlacement = placements(pointsPerMinute: finalPPM)
+        let finalHeight = max(scaledHeight, finalPlacement.maxBottom)
+        return LayoutMetrics(pointsPerMinute: finalPPM, totalHeight: finalHeight, startOffsets: finalPlacement.offsets)
+    }
+
+    private func pointsPerMinute(forHeight height: CGFloat) -> CGFloat {
+        guard visibleMinutes > 0 else { return basePointsPerMinute }
+        return height / CGFloat(visibleMinutes)
+    }
+
+    private func placements(pointsPerMinute: CGFloat) -> LayoutPlacement {
+        var offsets: [String: CGFloat] = [:]
+        var laneBottoms: [Int: CGFloat] = [:]
+        var maxBottom: CGFloat = 0
+
+        for layout in layouts {
+            let baseStart = rawOffset(for: layout.item.start, pointsPerMinute: pointsPerMinute)
+            let laneBottom = laneBottoms[layout.laneIndex] ?? .leastNormalMagnitude
+            let adjustedStart: CGFloat
+            if laneBottom.isFinite {
+                adjustedStart = max(baseStart, laneBottom + consecutiveEventSpacing)
+            } else {
+                adjustedStart = baseStart
+            }
+            offsets[layout.id] = adjustedStart
+
+            let blockHeight = blockHeight(for: layout.item, pointsPerMinute: pointsPerMinute)
+            let bottom = adjustedStart + blockHeight
+            laneBottoms[layout.laneIndex] = bottom
+            maxBottom = max(maxBottom, bottom)
+        }
+
+        return (offsets, maxBottom)
+    }
+
+    private func rawOffset(for date: Date, pointsPerMinute: CGFloat) -> CGFloat {
+        let minutes = date.timeIntervalSince(timelineBounds.start) / 60
+        return CGFloat(minutes) * pointsPerMinute
+    }
+
+    private func blockHeight(for item: TimelineScheduleItem, pointsPerMinute: CGFloat) -> CGFloat {
+        max(44, CGFloat(item.durationMinutes) * pointsPerMinute)
+    }
+
+    private typealias LayoutPlacement = (offsets: [String: CGFloat], maxBottom: CGFloat)
+
+    private struct LayoutMetrics {
+        let pointsPerMinute: CGFloat
+        let totalHeight: CGFloat
+        let startOffsets: [String: CGFloat]
     }
 }
 
