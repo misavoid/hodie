@@ -93,7 +93,9 @@ private struct TimelineCanvasView: View {
 
     private let hourHeight: CGFloat = 60
     private let consecutiveEventSpacing: CGFloat = 10
+    private let overlappingLaneSpacing: CGFloat = 8
     private let endOfDayInset: CGFloat = 32
+    private let contiguousTolerance: TimeInterval = 1
     private var visibleMinutes: Double {
         max(1, timelineBounds.end.timeIntervalSince(timelineBounds.start) / 60)
     }
@@ -103,6 +105,18 @@ private struct TimelineCanvasView: View {
     }
     private var layoutMetrics: LayoutMetrics {
         computeLayoutMetrics()
+    }
+    private var overlapAtStartLookup: [String: Bool] {
+        var lookup: [String: Bool] = [:]
+        for layout in layouts {
+            let overlapsAnotherLane = layouts.contains { other in
+                guard other.id != layout.id else { return false }
+                guard other.laneIndex != layout.laneIndex else { return false }
+                return other.item.start <= layout.item.start && layout.item.start < other.item.end
+            }
+            lookup[layout.id] = overlapsAnotherLane
+        }
+        return lookup
     }
 
     var body: some View {
@@ -192,10 +206,11 @@ private struct TimelineCanvasView: View {
         var height = max(scaledHeight, 44)
         var placement: LayoutPlacement = ([:], height)
         let maxIterations = 6
+        let overlapLookup = overlapAtStartLookup
 
         for _ in 0..<maxIterations {
             let ppm = pointsPerMinute(forHeight: height)
-            placement = placements(pointsPerMinute: ppm)
+            placement = placements(pointsPerMinute: ppm, overlapLookup: overlapLookup)
             let newHeight = max(scaledHeight, placement.maxBottom)
             if abs(newHeight - height) < 0.5 {
                 return LayoutMetrics(pointsPerMinute: ppm, totalHeight: newHeight, startOffsets: placement.offsets)
@@ -204,7 +219,7 @@ private struct TimelineCanvasView: View {
         }
 
         let finalPPM = pointsPerMinute(forHeight: height)
-        let finalPlacement = placements(pointsPerMinute: finalPPM)
+        let finalPlacement = placements(pointsPerMinute: finalPPM, overlapLookup: overlapLookup)
         let finalHeight = max(scaledHeight, finalPlacement.maxBottom)
         return LayoutMetrics(pointsPerMinute: finalPPM, totalHeight: finalHeight, startOffsets: finalPlacement.offsets)
     }
@@ -214,17 +229,28 @@ private struct TimelineCanvasView: View {
         return height / CGFloat(visibleMinutes)
     }
 
-    private func placements(pointsPerMinute: CGFloat) -> LayoutPlacement {
+    private func placements(pointsPerMinute: CGFloat, overlapLookup: [String: Bool]) -> LayoutPlacement {
         var offsets: [String: CGFloat] = [:]
         var laneBottoms: [Int: CGFloat] = [:]
+        var laneLastEndTimes: [Int: Date] = [:]
         var maxBottom: CGFloat = 0
 
         for layout in layouts {
             let baseStart = rawOffset(for: layout.item.start, pointsPerMinute: pointsPerMinute)
             let laneBottom = laneBottoms[layout.laneIndex] ?? .leastNormalMagnitude
+            let lastEnd = laneLastEndTimes[layout.laneIndex]
+            let isContiguous = lastEnd.map { abs(layout.item.start.timeIntervalSince($0)) <= contiguousTolerance } ?? false
+            let startOverlapsAnotherLane = overlapLookup[layout.id] ?? false
+
             let adjustedStart: CGFloat
             if laneBottom.isFinite {
-                adjustedStart = max(baseStart, laneBottom + consecutiveEventSpacing)
+                let spacing: CGFloat
+                if isContiguous {
+                    spacing = startOverlapsAnotherLane ? overlappingLaneSpacing : consecutiveEventSpacing
+                } else {
+                    spacing = 0
+                }
+                adjustedStart = max(baseStart, laneBottom + spacing)
             } else {
                 adjustedStart = baseStart
             }
@@ -233,6 +259,7 @@ private struct TimelineCanvasView: View {
             let blockHeight = blockHeight(for: layout.item, pointsPerMinute: pointsPerMinute)
             let bottom = adjustedStart + blockHeight
             laneBottoms[layout.laneIndex] = bottom
+            laneLastEndTimes[layout.laneIndex] = layout.item.end
             maxBottom = max(maxBottom, bottom)
         }
 
