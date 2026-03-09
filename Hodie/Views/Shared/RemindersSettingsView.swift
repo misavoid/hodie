@@ -83,7 +83,7 @@ struct RemindersSettingsView: View {
     }
 
     private var listsSection: some View {
-        let lists = provider.availableLists
+        let lists: [RemindersProvider.ReminderList] = provider.availableLists
         return Section("Reminder Lists") {
             if provider.authorization != .granted {
                 Text("Grant reminders access to view your lists.")
@@ -93,24 +93,29 @@ struct RemindersSettingsView: View {
                 Text("No reminder lists available.")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(lists, id: \.id) { list in
-                    Button {
-                        syncEngine.select(listID: list.id)
-                    } label: {
-                        HStack {
-                            Text(list.name)
-                            Spacer()
-                            if syncEngine.selectedListID == list.id {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(.accentColor)
-                            }
-                        }
-                    }
+                ForEach(lists, id: \.id) { (list: RemindersProvider.ReminderList) in
+                    remindersListRow(for: list)
                 }
                 if syncEngine.selectedListID != nil {
                     Button("Stop Importing", role: .destructive) {
                         syncEngine.select(listID: nil)
                     }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func remindersListRow(for list: RemindersProvider.ReminderList) -> some View {
+        Button {
+            syncEngine.select(listID: list.id)
+        } label: {
+            HStack {
+                Text(list.name)
+                Spacer()
+                if syncEngine.selectedListID == list.id {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.accentColor)
                 }
             }
         }
