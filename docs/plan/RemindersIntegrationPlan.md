@@ -31,13 +31,19 @@
    - When user taps “Connect Reminders”, prompt for access; surface fallback states (denied, not available).
 
 ## Implementation Status
-- `RemindersProvider` wraps `EKEventStore`, tracks authorization state on the main actor, refreshes calendars automatically, and exposes `ReminderList`/`ReminderItem` models consumed by the rest of the stack.
+- Base integration is live: `RemindersProvider` wraps `EKEventStore`, tracks authorization state on the main actor, refreshes calendars automatically, and exposes `ReminderList`/`ReminderItem` models consumed by the rest of the stack.
 - `RemindersSyncEngine` persists the user’s selected list ID, exposes `selectedListName`/`lastSyncedAt`, and offers `syncNow()` plus `select(listID:)` helpers so the UI can drive imports without knowledge of the store internals.
 - `RemindersSettingsView` now mirrors the intended UX:
   - Status section shows permission state, last sync, and current connection using the provider/sync engine above.
   - Reminder lists render as single-select rows with checkmarks, backed by `Button` rows that call `select(listID:)` and a destructive “Stop Importing” action.
   - When a list is selected, the sheet surfaces a manual “Sync now” button that invokes the sync engine.
 - The sheet kick-starts the provider’s authorization + list refresh via `.task` so opening the sheet reflects the latest state without requiring other entry points.
+
+## Remaining TODOs
+- Allow users to deselect the currently linked Reminders list to temporarily pause imports without disconnecting entirely.
+- Once authorization succeeds, hide the “Connect Reminders” button and replace it with an affordance for switching lists directly.
+- Add a collapsible “Scheduled & Recurring Reminders” section so imported items with scheduling metadata are grouped intentionally.
+- Update Inbox task rows sourced from Reminders to show their originating list title instead of the generic “Reminders” badge.
 
 ## Sync Behavior
 - Refresh reminders during app launch, manual pull-to-refresh, and when user changes the selected list.
