@@ -40,10 +40,17 @@
 - The sheet kick-starts the provider’s authorization + list refresh via `.task` so opening the sheet reflects the latest state without requiring other entry points.
 
 ## Remaining TODOs
-- Allow users to deselect the currently linked Reminders list to temporarily pause imports without disconnecting entirely.
-- Once authorization succeeds, hide the “Connect Reminders” button and replace it with an affordance for switching lists directly.
+
 - Add a collapsible “Scheduled & Recurring Reminders” section so imported items with scheduling metadata are grouped intentionally.
 - Update Inbox task rows sourced from Reminders to show their originating list title instead of the generic “Reminders” badge.
+- Inbox view is very slow
+- make task title box larger
+
+- when creating a task make it necessary to select a task type
+- there are three types: 
+1. quick tick (5 min) 
+2. task (15min +)
+3. Project task (60 min +)
 
 ## Sync Behavior
 - Refresh reminders during app launch, manual pull-to-refresh, and when user changes the selected list.

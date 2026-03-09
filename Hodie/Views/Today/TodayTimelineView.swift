@@ -8,6 +8,8 @@ struct TodayTimelineView: View {
     var onToggleTask: (Task) -> Void
     var onFocusTask: (Task) -> Void
     var onPlanTask: (Task) -> Void
+    var onRefresh: (@Sendable () async -> Void)?
+    @State private var isRefreshing = false
 
     private let anchorSpacing: CGFloat = 24
 
@@ -53,31 +55,72 @@ struct TodayTimelineView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                TimelineAnchorHeader(
-                    label: "Start of day",
-                    time: dayBounds.start,
-                    allDayEvents: allDayEvents
-                )
-                .padding(.bottom, anchorSpacing)
+        let refreshAction = onRefresh
 
-                TimelineCanvasView(
-                    layouts: sortedLayouts,
-                    nextStartLookup: nextStartLookup,
-                    dayBounds: dayBounds,
-                    timelineBounds: timelineBounds,
-                    showsHourMarkers: showsHourMarkers,
-                    onToggleTask: onToggleTask,
-                    onFocusTask: onFocusTask,
-                    onPlanTask: onPlanTask
-                )
-                .padding(.bottom, anchorSpacing)
+        return ZStack(alignment: .topTrailing) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    TimelineAnchorHeader(
+                        label: "Start of day",
+                        time: dayBounds.start,
+                        allDayEvents: allDayEvents
+                    )
+                    .padding(.bottom, anchorSpacing)
 
-                TimelineAnchorFooter(label: "End of day", time: dayBounds.end)
+                    TimelineCanvasView(
+                        layouts: sortedLayouts,
+                        nextStartLookup: nextStartLookup,
+                        dayBounds: dayBounds,
+                        timelineBounds: timelineBounds,
+                        showsHourMarkers: showsHourMarkers,
+                        onToggleTask: onToggleTask,
+                        onFocusTask: onFocusTask,
+                        onPlanTask: onPlanTask
+                    )
+                    .padding(.bottom, anchorSpacing)
+
+                    TimelineAnchorFooter(label: "End of day", time: dayBounds.end)
+                }
+                .padding(.vertical, 12)
             }
-            .padding(.vertical, 12)
+            .if(refreshAction != nil) { view in
+                view.refreshable {
+                    if let refreshAction {
+                        await refreshAction()
+                    }
+                }
+            }
+
+            if let refreshAction {
+                refreshButton(action: refreshAction)
+                    .padding(.trailing, 12)
+                    .padding(.top, 12)
+            }
         }
+    }
+
+    @ViewBuilder
+    private func refreshButton(action: @escaping () async -> Void) -> some View {
+        Button {
+            guard !isRefreshing else { return }
+            isRefreshing = true
+            _Concurrency.Task {
+                await action()
+                await MainActor.run {
+                    isRefreshing = false
+                }
+            }
+        } label: {
+            Label("Refresh timeline", systemImage: isRefreshing ? "arrow.clockwise.circle.fill" : "arrow.clockwise.circle")
+                .labelStyle(.iconOnly)
+                .imageScale(.large)
+                .padding(8)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Refresh timeline")
+        .accessibilityHint("Pulls the latest Apple Calendar events")
+        .disabled(isRefreshing)
     }
 }
 
@@ -96,6 +139,7 @@ private struct TimelineCanvasView: View {
     private let overlappingLaneSpacing: CGFloat = 8
     private let overlappingLaneSpacingBoost: CGFloat = 6
     private let endOfDayInset: CGFloat = 32
+    private let timelineTrailingPadding: CGFloat = 16
     private let contiguousTolerance: TimeInterval = 1
     private let parallelStartWindow: TimeInterval = 60
     private var visibleMinutes: Double {
@@ -160,6 +204,7 @@ private struct TimelineCanvasView: View {
                 .frame(height: metrics.totalHeight)
             }
             .frame(height: metrics.totalHeight)
+            .padding(.trailing, timelineTrailingPadding)
 
             Color.clear
                 .frame(height: endOfDayInset)

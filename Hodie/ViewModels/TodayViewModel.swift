@@ -46,8 +46,8 @@ final class TodayViewModel: ObservableObject {
         }
     }
 
-    func refresh() async {
-        await planner.refresh(for: selectedDate)
+    func refresh(forceCalendarReload: Bool = false) async {
+        await planner.refresh(for: selectedDate, forceCalendarReload: forceCalendarReload)
         await MainActor.run {
             self.plan = planner.plan
         }
@@ -74,7 +74,7 @@ final class TodayViewModel: ObservableObject {
             _Concurrency.Task { [weak self] in
                 guard let self else { return }
                 await self.calendarProvider.requestAccess()
-                await self.refresh()
+                await self.refresh(forceCalendarReload: true)
             }
         }
     }

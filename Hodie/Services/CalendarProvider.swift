@@ -5,6 +5,11 @@ import Combine
 
 protocol CalendarEventSource: AnyObject {
     func events(for date: Date) async -> [CalendarEvent]
+    func invalidateCache(for date: Date)
+}
+
+extension CalendarEventSource {
+    func invalidateCache(for date: Date) {}
 }
 
 @MainActor
@@ -18,10 +23,16 @@ final class CalendarProvider: ObservableObject, CalendarEventSource {
 
     @Published private(set) var authorization: AuthorizationState = .unknown
     private let eventStore = EKEventStore()
-    private var cache: [Date: [CalendarEvent]] = [:]
+    private var changeCancellable: AnyCancellable?
 
     init() {
         refreshAuthorizationState()
+        changeCancellable = NotificationCenter.default
+            .publisher(for: .EKEventStoreChanged, object: eventStore)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.handleEventStoreChange()
+            }
     }
 
     func refreshAuthorizationState() {
@@ -60,15 +71,12 @@ final class CalendarProvider: ObservableObject, CalendarEventSource {
     }
 
     func events(for date: Date) async -> [CalendarEvent] {
-        let start = date.startOfDay()
-        if let cached = cache[start] {
-            return cached
-        }
-
         guard authorization == .granted else {
             return []
         }
 
+        let start = date.startOfDay()
+        eventStore.refreshSourcesIfNecessary()
         let end = start.addingTimeInterval(86_400)
         let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: nil)
         let ekEvents = eventStore.events(matching: predicate)
@@ -83,7 +91,15 @@ final class CalendarProvider: ObservableObject, CalendarEventSource {
                 isAllDay: ekEvent.isAllDay
             )
         }
-        cache[start] = events
         return events
+    }
+
+    func invalidateCache(for date: Date) {
+        eventStore.reset()
+        eventStore.refreshSourcesIfNecessary()
+    }
+
+    private func handleEventStoreChange() {
+        eventStore.reset()
     }
 }

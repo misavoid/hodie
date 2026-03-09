@@ -13,7 +13,10 @@ final class DayPlanner: ObservableObject {
         self.calendarProvider = calendarProvider
     }
 
-    func refresh(for date: Date) async {
+    func refresh(for date: Date, forceCalendarReload: Bool = false) async {
+        if forceCalendarReload {
+            calendarProvider.invalidateCache(for: date)
+        }
         var plan = taskStore.dayPlan(for: date)
         let events = await calendarProvider.events(for: date)
         plan.calendarEvents = events

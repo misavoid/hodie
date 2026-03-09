@@ -27,7 +27,8 @@ struct TodayView: View {
                         interactionState: viewModel.timelineInteractionState,
                         onToggleTask: { task in viewModel.toggleCompletion(task) },
                         onFocusTask: { task in focusController.begin(for: task) },
-                        onPlanTask: { task in viewModel.beginTimelinePlacement(for: task) }
+                        onPlanTask: { task in viewModel.beginTimelinePlacement(for: task) },
+                        onRefresh: { await viewModel.refresh(forceCalendarReload: true) }
                     )
                     .listRowInsets(EdgeInsets())
                 }
@@ -44,24 +45,24 @@ struct TodayView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .refreshable { await viewModel.refresh(forceCalendarReload: true) }
             .navigationTitle("Today")
-            .sheet(isPresented: $showingInboxPicker) {
-                InboxPlanningPicker(tasks: environment.taskStore.inboxTasks()) { task in
-                    viewModel.beginTimelinePlacement(for: task)
-                }
-            }
-            .sheet(item: timelinePlacementBinding) { task in
-                TimelineTimePickerSheet(
-                    task: task,
-                    bounds: viewModel.dayBounds,
-                    initialTime: viewModel.timelinePlacementTime ?? viewModel.dayBounds.start,
-                    onConfirm: { start in viewModel.confirmTimelinePlacement(at: start) },
-                    onCancel: { viewModel.cancelTimelinePlacement() }
-                )
-            }
-            .task { viewModel.load() }
-            .refreshable { await viewModel.refresh() }
         }
+        .sheet(isPresented: $showingInboxPicker) {
+            InboxPlanningPicker(tasks: environment.taskStore.inboxTasks()) { task in
+                viewModel.beginTimelinePlacement(for: task)
+            }
+        }
+        .sheet(item: timelinePlacementBinding) { task in
+            TimelineTimePickerSheet(
+                task: task,
+                bounds: viewModel.dayBounds,
+                initialTime: viewModel.timelinePlacementTime ?? viewModel.dayBounds.start,
+                onConfirm: { start in viewModel.confirmTimelinePlacement(at: start) },
+                onCancel: { viewModel.cancelTimelinePlacement() }
+            )
+        }
+        .task { viewModel.load() }
     }
 
     @ViewBuilder
