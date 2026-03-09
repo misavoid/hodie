@@ -38,7 +38,7 @@ struct RootView: View {
                 remindersSync: environment.remindersSync
             )
                 .tabItem { Label("Inbox", systemImage: "tray") }
-            FocusScreen(controller: environment.focusController)
+            FocusScreen(controller: environment.focusController, pomodoroCoordinator: environment.pomodoroCoordinator)
                 .tabItem { Label("Focus", systemImage: "timer") }
             ReviewView(viewModel: reviewViewModel)
                 .tabItem { Label("Review", systemImage: "clock.arrow.circlepath") }
@@ -59,7 +59,7 @@ struct RootView: View {
                 remindersSync: environment.remindersSync
             )
         case .focus:
-            FocusScreen(controller: environment.focusController)
+            FocusScreen(controller: environment.focusController, pomodoroCoordinator: environment.pomodoroCoordinator)
         case .review:
             ReviewView(viewModel: reviewViewModel)
         }

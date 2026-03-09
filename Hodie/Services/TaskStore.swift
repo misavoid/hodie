@@ -48,6 +48,16 @@ final class TaskStore {
         return results
     }
 
+    func projectTasks(includeCompleted: Bool = false) -> [Task] {
+        let descriptor = FetchDescriptor<Task>(sortBy: [SortDescriptor(\Task.updatedAt, order: .reverse)])
+        var tasks = (try? context.fetch(descriptor)) ?? []
+        tasks = tasks.filter { $0.type == .projectTask }
+        if !includeCompleted {
+            tasks = tasks.filter { $0.status != .completed }
+        }
+        return tasks
+    }
+
     func dayPlan(for date: Date) -> DayPlan {
         let start = date.startOfDay()
         let end = start.addingTimeInterval(86_400)

@@ -13,6 +13,7 @@ final class FocusController: ObservableObject {
     var remainingSeconds: TimeInterval { focusTimer.remaining }
     var totalSeconds: TimeInterval { max(focusTimer.duration, 1) }
     var state: FocusTimerEngine.State { focusTimer.state }
+    var isBlockedByPomodoro: Bool { focusTimer.mode == .pomodoro }
 
     private let focusStore: FocusSessionStore
     private let focusTimer: FocusTimerEngine
@@ -38,6 +39,7 @@ final class FocusController: ObservableObject {
 
     func begin(for task: Task?) {
         guard customMinutes > 0 else { return }
+        guard !isBlockedByPomodoro else { return }
         let override = selectedPreset == .custom ? customMinutes : nil
         let session = focusStore.startSession(for: task, preset: selectedPreset, overrideDuration: override)
         activeTask = task

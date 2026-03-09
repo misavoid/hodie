@@ -2,10 +2,19 @@ import SwiftUI
 
 struct FocusScreen: View {
     @ObservedObject var controller: FocusController
+    @ObservedObject var pomodoroCoordinator: PomodoroCoordinator
+    @State private var showingPomodoroPlanner = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                PomodoroSessionPanel(
+                    coordinator: pomodoroCoordinator,
+                    timer: controller.timer,
+                    displayMode: .detail,
+                    onPlan: { showingPomodoroPlanner = true }
+                )
+                Divider()
                 if controller.isPresented, let session = controller.activeSession {
                     activeSessionView(session)
                 } else {
@@ -16,6 +25,9 @@ struct FocusScreen: View {
             .padding()
         }
         .navigationTitle("Focus")
+        .sheet(isPresented: $showingPomodoroPlanner) {
+            PomodoroPlannerView(coordinator: pomodoroCoordinator)
+        }
     }
 
     private func activeSessionView(_ session: FocusSession) -> some View {
@@ -43,6 +55,11 @@ struct FocusScreen: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Ready to focus?")
                 .font(.title2)
+            if isPomodoroBlockingTimer {
+                Label("Pomodoro session is using the focus timer", systemImage: "lock.fill")
+                    .foregroundStyle(.orange)
+                    .font(.caption)
+            }
             Picker("Preset", selection: $controller.selectedPreset) {
                 ForEach(FocusSession.SessionType.allCases) { preset in
                     Text(preset.label).tag(preset)
@@ -61,6 +78,7 @@ struct FocusScreen: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .disabled(isPomodoroBlockingTimer)
         }
         .padding()
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -94,5 +112,10 @@ struct FocusScreen: View {
         let minutes = Int(remaining) / 60
         let seconds = Int(remaining) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    private var isPomodoroBlockingTimer: Bool {
+        guard let status = pomodoroCoordinator.state?.status else { return false }
+        return status == .active || status == .paused
     }
 }

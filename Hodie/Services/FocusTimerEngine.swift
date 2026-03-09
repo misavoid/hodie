@@ -9,26 +9,43 @@ final class FocusTimerEngine: ObservableObject {
         case paused
         case completed
     }
+    enum Mode {
+        case none
+        case single
+        case pomodoro
+    }
 
     @Published private(set) var state: State = .idle
     @Published private(set) var remaining: TimeInterval = 0
     @Published private(set) var duration: TimeInterval = 0
+    @Published private(set) var mode: Mode = .none
 
     private var timer: Timer?
     private var lastFireDate: Date?
     var completionHandler: (() -> Void)?
+    var pomodoroCompletionHandler: (() -> Void)?
 
     func start(durationMinutes: Int) {
-        duration = TimeInterval(durationMinutes * 60)
+        start(durationSeconds: TimeInterval(durationMinutes * 60), mode: .single)
+    }
+
+    func startPomodoroBlock(durationSeconds: TimeInterval) {
+        start(durationSeconds: durationSeconds, mode: .pomodoro)
+    }
+
+    private func start(durationSeconds: TimeInterval, mode: Mode) {
+        duration = max(1, durationSeconds)
         remaining = duration
         state = .running
+        self.mode = mode
         scheduleTimer()
     }
 
-    func attachExisting(durationSeconds: TimeInterval, remainingSeconds: TimeInterval, state: State) {
+    func attachExisting(durationSeconds: TimeInterval, remainingSeconds: TimeInterval, state: State, mode: Mode = .single) {
         duration = max(1, durationSeconds)
         remaining = min(duration, max(0, remainingSeconds))
         self.state = state
+        self.mode = mode
         if state == .running {
             scheduleTimer()
         }
@@ -51,7 +68,9 @@ final class FocusTimerEngine: ObservableObject {
         remaining = 0
         duration = 0
         state = .idle
+        mode = .none
         completionHandler = nil
+        pomodoroCompletionHandler = nil
     }
 
     private func scheduleTimer() {
@@ -78,7 +97,14 @@ final class FocusTimerEngine: ObservableObject {
             remaining = 0
             state = .completed
             invalidateTimer()
-            completionHandler?()
+            switch mode {
+            case .single:
+                completionHandler?()
+            case .pomodoro:
+                pomodoroCompletionHandler?()
+            case .none:
+                break
+            }
         }
     }
 
@@ -96,7 +122,14 @@ final class FocusTimerEngine: ObservableObject {
             remaining = 0
             state = .completed
             invalidateTimer()
-            completionHandler?()
+            switch mode {
+            case .single:
+                completionHandler?()
+            case .pomodoro:
+                pomodoroCompletionHandler?()
+            case .none:
+                break
+            }
         }
     }
 #endif

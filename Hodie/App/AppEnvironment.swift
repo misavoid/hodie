@@ -13,6 +13,8 @@ final class AppEnvironment: ObservableObject {
     let reviewCoordinator: ReviewCoordinator
     let focusTimer: FocusTimerEngine
     let focusController: FocusController
+    let pomodoroStore: PomodoroSessionStore
+    let pomodoroCoordinator: PomodoroCoordinator
     let remindersProvider: RemindersProvider
     let remindersSync: RemindersSyncEngine
 
@@ -26,6 +28,9 @@ final class AppEnvironment: ObservableObject {
         self.reviewCoordinator = ReviewCoordinator(taskStore: taskStore, focusStore: focusStore)
         self.focusTimer = FocusTimerEngine()
         self.focusController = FocusController(focusStore: focusStore, timer: focusTimer)
+        self.pomodoroStore = PomodoroSessionStore(context: context)
+        self.pomodoroCoordinator = PomodoroCoordinator(store: pomodoroStore, timer: focusTimer)
+        self.pomodoroCoordinator.restoreActiveSession()
         self.remindersProvider = RemindersProvider()
         let remindersSettings = RemindersSettingsStore(defaults: .standard)
         self.remindersSync = RemindersSyncEngine(provider: remindersProvider, taskStore: taskStore, settings: remindersSettings)

@@ -8,7 +8,7 @@
 - Keep planner/timer state unified so Focus HUD, Today view, and notifications stay in sync.
 
 ## Key User Stories
-1. **Plan Session**: From Today or Focus view, I can tap “Start Pomodoro Session,” set the number of pomodoros (derived from desired total time), write a session goal, and optionally pre-fill per-pom goals.
+1. **Plan Session**: From Today or Focus view, I can tap “Start Pomodoro Session,” set the number of pomodoros (derived from desired total time), write a session goal, and optionally pre-fill per-pom goals. The task type "Project" is to be associated with the session goal of a pomodoro session.
 2. **Track Per-Pom Goal**: Before or during each focus block, I can define what I aim to finish in that block and see it while the timer runs.
 3. **Auto Break Cadence**: When a pom ends, a 5-minute break starts automatically; after every fourth pom, I’m prompted for or placed into a 30-minute break.
 4. **Completion + Reflection**: After the total session, I can mark the overall goal as met, carry unfinished per-pom goals forward, or log notes.

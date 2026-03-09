@@ -28,7 +28,9 @@ struct HodieApp: App {
     private static func makeContainer() -> ModelContainer {
         let schema = Schema([
             Task.self,
-            FocusSession.self
+            FocusSession.self,
+            PomodoroSession.self,
+            PomodoroBlock.self
         ])
         let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-TESTING")
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: isUITesting)

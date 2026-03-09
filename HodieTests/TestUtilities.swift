@@ -7,7 +7,9 @@ enum TestUtilities {
     static func inMemoryContainer() throws -> ModelContainer {
         let schema = Schema([
             Task.self,
-            FocusSession.self
+            FocusSession.self,
+            PomodoroSession.self,
+            PomodoroBlock.self
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return try ModelContainer(for: schema, configurations: [configuration])
