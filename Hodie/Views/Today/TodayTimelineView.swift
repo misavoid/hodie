@@ -92,6 +92,9 @@ private struct TimelineCanvasView: View {
     var onPlanTask: (Task) -> Void
 
     private let hourHeight: CGFloat = 60
+    private let consecutiveEventSpacing: CGFloat = 8
+    private let endOfDayInset: CGFloat = 32
+    private let backToBackTolerance: TimeInterval = 1
     private var visibleMinutes: Double {
         max(1, timelineBounds.end.timeIntervalSince(timelineBounds.start) / 60)
     }
@@ -100,8 +103,10 @@ private struct TimelineCanvasView: View {
         CGFloat(visibleMinutes) * basePointsPerMinute
     }
     private var requiredHeight: CGFloat {
-        layouts.reduce(0) { current, layout in
-            let bottom = blockBottom(for: layout, scale: basePointsPerMinute)
+        let spacingOffsets = consecutiveSpacingOffsets
+        return layouts.reduce(0) { current, layout in
+            let spacing = spacingOffsets[layout.id] ?? 0
+            let bottom = blockBottom(for: layout, scale: basePointsPerMinute, spacing: spacing)
             return max(current, bottom)
         }
     }
@@ -115,40 +120,69 @@ private struct TimelineCanvasView: View {
         guard visibleMinutes > 0 else { return basePointsPerMinute }
         return totalHeight / CGFloat(visibleMinutes)
     }
+    private var consecutiveSpacingOffsets: [String: CGFloat] {
+        var offsets: [String: CGFloat] = [:]
+        var laneLastEnd: [Int: Date] = [:]
+        var laneAccumulatedSpacing: [Int: CGFloat] = [:]
+
+        for layout in layouts {
+            let lane = layout.laneIndex
+            let lastEnd = laneLastEnd[lane]
+            var spacing = laneAccumulatedSpacing[lane] ?? 0
+
+            if let lastEnd, layout.item.start.timeIntervalSince(lastEnd) <= backToBackTolerance {
+                spacing += consecutiveEventSpacing
+            }
+
+            offsets[layout.id] = spacing
+            laneAccumulatedSpacing[lane] = spacing
+            laneLastEnd[lane] = layout.item.end
+        }
+
+        return offsets
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            TimelineAxisView(
-                bounds: timelineBounds,
-                height: totalHeight,
-                showsHourMarkers: showsHourMarkers
-            )
-            GeometryReader { geometry in
-                let width = geometry.size.width
-                ZStack(alignment: .topLeading) {
-                    ForEach(layouts) { layout in
-                        let startOffset = offset(for: layout.item.start)
-                        let blockHeight = max(44, height(for: layout.item))
-                        let laneWidth = laneWidth(for: layout, totalWidth: width)
-                        let xPosition = CGFloat(layout.laneIndex) * (laneWidth + 8)
-                        TimelineBlockView(
-                            layout: layout,
-                            freeTimeText: freeTime(for: layout),
-                            onToggleTask: onToggleTask,
-                            onFocusTask: onFocusTask,
-                            onPlanTask: onPlanTask
-                        )
-                        .frame(width: laneWidth, height: blockHeight, alignment: .topLeading)
-                        .position(
-                            x: xPosition + laneWidth / 2,
-                            y: startOffset + blockHeight / 2
-                        )
+        let spacingOffsets = consecutiveSpacingOffsets
+
+        return VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                TimelineAxisView(
+                    bounds: timelineBounds,
+                    height: totalHeight,
+                    showsHourMarkers: showsHourMarkers
+                )
+                GeometryReader { geometry in
+                    let width = geometry.size.width
+                    ZStack(alignment: .topLeading) {
+                        ForEach(layouts) { layout in
+                            let spacing = spacingOffsets[layout.id] ?? 0
+                            let startOffset = offset(for: layout.item.start) + spacing
+                            let blockHeight = max(44, height(for: layout.item))
+                            let laneWidth = laneWidth(for: layout, totalWidth: width)
+                            let xPosition = CGFloat(layout.laneIndex) * (laneWidth + 8)
+                            TimelineBlockView(
+                                layout: layout,
+                                freeTimeText: freeTime(for: layout),
+                                onToggleTask: onToggleTask,
+                                onFocusTask: onFocusTask,
+                                onPlanTask: onPlanTask
+                            )
+                            .frame(width: laneWidth, height: blockHeight, alignment: .topLeading)
+                            .position(
+                                x: xPosition + laneWidth / 2,
+                                y: startOffset + blockHeight / 2
+                            )
+                        }
                     }
                 }
+                .frame(height: totalHeight)
             }
             .frame(height: totalHeight)
+
+            Color.clear
+                .frame(height: endOfDayInset)
         }
-        .frame(height: totalHeight)
     }
 
     private func offset(for date: Date) -> CGFloat {
@@ -193,9 +227,9 @@ private struct TimelineCanvasView: View {
         return components.joined(separator: " ")
     }
 
-    private func blockBottom(for layout: TimelineScheduleLayout, scale: CGFloat) -> CGFloat {
+    private func blockBottom(for layout: TimelineScheduleLayout, scale: CGFloat, spacing: CGFloat) -> CGFloat {
         let minutes = layout.item.start.timeIntervalSince(timelineBounds.start) / 60
-        let startOffset = CGFloat(minutes) * scale
+        let startOffset = CGFloat(minutes) * scale + spacing
         let blockHeight = max(44, CGFloat(layout.item.durationMinutes) * scale)
         return startOffset + blockHeight
     }

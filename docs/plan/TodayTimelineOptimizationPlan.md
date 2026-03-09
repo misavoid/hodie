@@ -48,3 +48,7 @@ Introduce `TimelineInteractionState` inside `TodayViewModel`:
 - Added a symmetric 24 pt buffer around the compressed timeline so the “Start of day” and “End of day” anchors now sit the same distance from the first/last cards, resolving the lingering asymmetry call-out while keeping the canvas length tied to actual scheduled blocks.
 - Follow-ups: cover the axis toggle in a snapshot/UI test, and consider adding the optional `.confirming` interaction state once the time picker animation work resumes.
 - New follow-ups: add regression coverage for the compressed timeline bounds (e.g., ensure all-day-empty states still render a reasonable placeholder) and verify localized strings for “until end of day.”
+
+## Progress — 2026-03-09
+- Added a lane-aware spacing pass in `TimelineCanvasView` so back-to-back items (same lane, matching end/start times) receive an automatic 8 pt offset, which keeps the cards from visually touching on both compact and regular timelines.
+- Appended a dedicated 32 pt inset after the canvas stack so the “End of day” marker clears the final block consistently; the footer now stays visually detached even when the last card is tall or ends near 10 PM.
