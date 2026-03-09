@@ -124,6 +124,8 @@ struct TodayTimelineView: View {
     }
 }
 
+typealias TimelineLayoutPlacement = (offsets: [String: CGFloat], maxBottom: CGFloat)
+
 private struct TimelineCanvasView: View {
     let layouts: [TimelineScheduleLayout]
     let nextStartLookup: [String: Date]
@@ -143,6 +145,7 @@ private struct TimelineCanvasView: View {
     private let contiguousTolerance: TimeInterval = 1
     private let parallelStartWindow: TimeInterval = 60
     private let maxCompressedGapMinutes: Double = 20
+    private let cardBottomPadding: CGFloat = 10
 
     private var compressesGaps: Bool { !showsHourMarkers }
     private var basePointsPerMinute: CGFloat { hourHeight / 60 }
@@ -179,8 +182,9 @@ private struct TimelineCanvasView: View {
                     ZStack(alignment: .topLeading) {
                         ForEach(layouts) { layout in
                             let startOffset = metrics.startOffsets[layout.id]
-                                ?? rawOffset(for: layout, compression: compression, pointsPerMinute: metrics.pointsPerMinute)
-                            let blockHeight = blockHeight(for: layout.item, pointsPerMinute: metrics.pointsPerMinute)
+                                ?? timelineRawOffset(for: layout, compression: compression, pointsPerMinute: metrics.pointsPerMinute)
+                            let blockHeight = timelineBlockHeight(for: layout.item, pointsPerMinute: metrics.pointsPerMinute)
+                            let paddedHeight = blockHeight + cardBottomPadding
                             let laneWidth = laneWidth(for: layout, totalWidth: width)
                             let xPosition = CGFloat(layout.laneIndex) * (laneWidth + 8)
                             TimelineBlockView(
@@ -191,9 +195,10 @@ private struct TimelineCanvasView: View {
                                 onPlanTask: onPlanTask
                             )
                             .frame(width: laneWidth, height: blockHeight, alignment: .topLeading)
+                            .frame(height: paddedHeight, alignment: .topLeading)
                             .position(
                                 x: xPosition + laneWidth / 2,
-                                y: startOffset + blockHeight / 2
+                                y: startOffset + paddedHeight / 2
                             )
                         }
                     }
@@ -253,10 +258,18 @@ private struct TimelineCanvasView: View {
         var placement: LayoutPlacement = ([:], height)
         let maxIterations = 6
         let overlapLookup = overlapAtStartLookup
+        let placementCalculator = TimelineLanePlacementCalculator(
+            layouts: layouts,
+            consecutiveEventSpacing: consecutiveEventSpacing,
+            overlappingLaneSpacing: overlappingLaneSpacing,
+            overlappingLaneSpacingBoost: overlappingLaneSpacingBoost,
+            contiguousTolerance: contiguousTolerance,
+            cardBottomPadding: cardBottomPadding
+        )
 
         for _ in 0..<maxIterations {
             let ppm = pointsPerMinute(forHeight: height, totalMinutes: compression.totalCompressedMinutes)
-            placement = placements(pointsPerMinute: ppm, overlapLookup: overlapLookup, compression: compression)
+            placement = placementCalculator.placements(pointsPerMinute: ppm, overlapLookup: overlapLookup, compression: compression)
             let newHeight = max(scaledHeight(totalMinutes: compression.totalCompressedMinutes), placement.maxBottom)
             if abs(newHeight - height) < 0.5 {
                 return LayoutMetrics(pointsPerMinute: ppm, totalHeight: newHeight, startOffsets: placement.offsets)
@@ -265,7 +278,7 @@ private struct TimelineCanvasView: View {
         }
 
         let finalPPM = pointsPerMinute(forHeight: height, totalMinutes: compression.totalCompressedMinutes)
-        let finalPlacement = placements(pointsPerMinute: finalPPM, overlapLookup: overlapLookup, compression: compression)
+        let finalPlacement = placementCalculator.placements(pointsPerMinute: finalPPM, overlapLookup: overlapLookup, compression: compression)
         let finalHeight = max(scaledHeight(totalMinutes: compression.totalCompressedMinutes), finalPlacement.maxBottom)
         return LayoutMetrics(pointsPerMinute: finalPPM, totalHeight: finalHeight, startOffsets: finalPlacement.offsets)
     }
@@ -275,52 +288,7 @@ private struct TimelineCanvasView: View {
         return height / CGFloat(totalMinutes)
     }
 
-    private func placements(pointsPerMinute: CGFloat, overlapLookup: [String: Bool], compression: TimelineCompressionInfo) -> LayoutPlacement {
-        var offsets: [String: CGFloat] = [:]
-        var laneBottoms: [Int: CGFloat] = [:]
-        var laneLastEndTimes: [Int: Date] = [:]
-        var maxBottom: CGFloat = 0
-        let dynamicOverlapSpacing = overlappingLaneSpacing + max(0, (1 - pointsPerMinute)) * overlappingLaneSpacingBoost
-
-        for layout in layouts {
-            let baseStart = rawOffset(for: layout, compression: compression, pointsPerMinute: pointsPerMinute)
-            let laneBottom = laneBottoms[layout.laneIndex] ?? .leastNormalMagnitude
-            let lastEnd = laneLastEndTimes[layout.laneIndex]
-            let timeSinceLastEnd = lastEnd.map { layout.item.start.timeIntervalSince($0) }
-            let hasMeaningfulGapBeforeStart = timeSinceLastEnd.map { $0 > contiguousTolerance } ?? false
-            let startOverlapsAnotherLane = overlapLookup[layout.id] ?? false
-
-            let adjustedStart: CGFloat
-            if laneBottom.isFinite {
-                let baseSpacing = consecutiveEventSpacing
-                let overlapSpacingApplied = startOverlapsAnotherLane && hasMeaningfulGapBeforeStart
-                let overlapSpacing = overlapSpacingApplied ? min(consecutiveEventSpacing, dynamicOverlapSpacing) : baseSpacing
-                adjustedStart = max(baseStart, laneBottom + overlapSpacing)
-            } else {
-                adjustedStart = baseStart
-            }
-            offsets[layout.id] = adjustedStart
-
-            let blockHeight = blockHeight(for: layout.item, pointsPerMinute: pointsPerMinute)
-            let bottom = adjustedStart + blockHeight
-            laneBottoms[layout.laneIndex] = bottom
-            laneLastEndTimes[layout.laneIndex] = layout.item.end
-            maxBottom = max(maxBottom, bottom)
-        }
-
-        return (offsets, maxBottom)
-    }
-
-    private func rawOffset(for layout: TimelineScheduleLayout, compression: TimelineCompressionInfo, pointsPerMinute: CGFloat) -> CGFloat {
-        let minutes = compression.compressedMinutes(for: layout.item.start)
-        return CGFloat(minutes) * pointsPerMinute
-    }
-
-    private func blockHeight(for item: TimelineScheduleItem, pointsPerMinute: CGFloat) -> CGFloat {
-        max(44, CGFloat(item.durationMinutes) * pointsPerMinute)
-    }
-
-    private typealias LayoutPlacement = (offsets: [String: CGFloat], maxBottom: CGFloat)
+    private typealias LayoutPlacement = TimelineLayoutPlacement
 
     private struct LayoutMetrics {
         let pointsPerMinute: CGFloat
@@ -365,6 +333,86 @@ private struct TimelineCanvasView: View {
             adjustments: adjustments
         )
     }
+}
+
+struct TimelineLanePlacementCalculator {
+    let layouts: [TimelineScheduleLayout]
+    let consecutiveEventSpacing: CGFloat
+    let overlappingLaneSpacing: CGFloat
+    let overlappingLaneSpacingBoost: CGFloat
+    let contiguousTolerance: TimeInterval
+    let cardBottomPadding: CGFloat
+
+    func placements(pointsPerMinute: CGFloat, overlapLookup: [String: Bool], compression: TimelineCompressionInfo) -> TimelineLayoutPlacement {
+        guard !layouts.isEmpty else {
+            return ([:], 0)
+        }
+
+        let groupedByLane = Dictionary(grouping: layouts, by: { $0.laneIndex })
+
+        var offsets: [String: CGFloat] = [:]
+        var blockHeights: [String: CGFloat] = [:]
+
+        let requiredGap = consecutiveEventSpacing
+
+        for laneIndex in groupedByLane.keys.sorted() {
+            guard var laneLayouts = groupedByLane[laneIndex] else { continue }
+            laneLayouts.sort(by: laneOrdering)
+
+            var laneBottom: CGFloat?
+
+            for layout in laneLayouts {
+                let rawOffset = timelineRawOffset(for: layout, compression: compression, pointsPerMinute: pointsPerMinute)
+                let blockHeight = timelineBlockHeight(for: layout.item, pointsPerMinute: pointsPerMinute)
+                let minimumStart = laneBottom.map { $0 + requiredGap }
+                var adjustedStart = max(rawOffset, minimumStart ?? rawOffset)
+
+                if laneBottom != nil, overlapLookup[layout.id] == true {
+                    adjustedStart += overlapBoost(pointsPerMinute: pointsPerMinute)
+                }
+
+                offsets[layout.id] = adjustedStart
+                blockHeights[layout.id] = blockHeight
+                laneBottom = adjustedStart + blockHeight
+            }
+        }
+
+        var maxBottom: CGFloat = 0
+        for layout in layouts {
+            guard
+                let start = offsets[layout.id],
+                let blockHeight = blockHeights[layout.id]
+            else { continue }
+            let paddedHeight = blockHeight + cardBottomPadding
+            maxBottom = max(maxBottom, start + paddedHeight)
+        }
+
+        return (offsets, maxBottom)
+    }
+
+    private func overlapBoost(pointsPerMinute: CGFloat) -> CGFloat {
+        let compressionFactor = max(0, min(1, 1 - pointsPerMinute))
+        return overlappingLaneSpacing + (overlappingLaneSpacingBoost * compressionFactor)
+    }
+
+    private func laneOrdering(lhs: TimelineScheduleLayout, rhs: TimelineScheduleLayout) -> Bool {
+        if lhs.item.start == rhs.item.start {
+            if lhs.item.durationMinutes == rhs.item.durationMinutes {
+                return lhs.id < rhs.id
+            }
+            return lhs.item.durationMinutes > rhs.item.durationMinutes
+        }
+        return lhs.item.start < rhs.item.start
+    }
+}
+
+fileprivate func timelineRawOffset(for layout: TimelineScheduleLayout, compression: TimelineCompressionInfo, pointsPerMinute: CGFloat) -> CGFloat {
+    let minutes = compression.compressedMinutes(for: layout.item.start)
+    return CGFloat(minutes) * pointsPerMinute
+}
+
+fileprivate func timelineBlockHeight(for item: TimelineScheduleItem, pointsPerMinute: CGFloat) -> CGFloat {
+    max(44, CGFloat(item.durationMinutes) * pointsPerMinute)
 }
 
 private struct TimelineAxisView: View {
@@ -663,7 +711,7 @@ struct TimelineTimePickerSheet: View {
     }
 }
 
-private struct TimelineCompressionInfo {
+struct TimelineCompressionInfo {
     let referenceStart: Date
     let totalCompressedMinutes: Double
     let adjustments: [(time: Date, reduction: Double)]
