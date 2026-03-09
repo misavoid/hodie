@@ -27,4 +27,31 @@ struct TaskStoreTests {
         taskStore.rollover(task, destination: .inbox)
         #expect(task.status == .inbox)
     }
+
+    @Test func reminderImportSetsListNameAndType() async throws {
+        let (taskStore, _, _) = try TestUtilities.makeStores()
+        let reminder = RemindersProvider.ReminderItem(
+            id: "abc",
+            calendarIdentifier: "list-1",
+            calendarTitle: "Workspace",
+            title: "Prep slides",
+            notes: "Quarterly review",
+            dueDate: Date().addingTimeInterval(5400),
+            completionDate: nil,
+            recurrence: Task.RecurrenceRule(frequency: .weekly, interval: 1),
+            isCompleted: false,
+            priority: 1,
+            hasDueTimeComponents: true,
+            noteCharacterCount: 30,
+            isFlagged: true
+        )
+
+        taskStore.importReminders([reminder], calendarID: "list-1", calendarName: "Workspace")
+        let inbox = taskStore.inboxTasks()
+        #expect(inbox.count == 1)
+        #expect(inbox.first?.sourceListName == "Workspace")
+        #expect(inbox.first?.type == .projectTask)
+        #expect(inbox.first?.recurrence?.frequency == .weekly)
+        #expect(inbox.first?.shouldAppearInScheduledReminderSection == true)
+    }
 }

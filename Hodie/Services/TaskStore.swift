@@ -4,13 +4,17 @@ import SwiftData
 @MainActor
 final class TaskStore {
     private let context: ModelContext
+    private let defaults: UserDefaults
+    private let typeMigrationKey = "task.type.migrated.v1"
 
-    init(context: ModelContext) {
+    init(context: ModelContext, defaults: UserDefaults = .standard) {
         self.context = context
+        self.defaults = defaults
+        backfillTaskTypesIfNeeded()
     }
 
-    func quickAdd(title: String, notes: String? = nil, dueDate: Date? = nil, priority: Task.Priority = .normal) -> Task {
-        let newTask = Task(title: title, notes: notes, dueDate: dueDate, priority: priority)
+    func quickAdd(title: String, notes: String? = nil, dueDate: Date? = nil, priority: Task.Priority = .normal, type: Task.TaskType = .task) -> Task {
+        let newTask = Task(title: title, notes: notes, dueDate: dueDate, priority: priority, type: type)
         context.insert(newTask)
         saveContext()
         return newTask
@@ -127,7 +131,7 @@ final class TaskStore {
         saveContext()
     }
 
-    func importReminders(_ reminders: [RemindersProvider.ReminderItem], calendarID: String) {
+    func importReminders(_ reminders: [RemindersProvider.ReminderItem], calendarID: String, calendarName: String?) {
         let descriptor = FetchDescriptor<Task>()
         let tasks = (try? context.fetch(descriptor)) ?? []
         let prefix = Task.reminderSourcePrefix(for: calendarID)
@@ -148,6 +152,8 @@ final class TaskStore {
                 task.notes = reminder.notes
                 task.dueDate = reminder.dueDate
                 task.source = sourceID
+                task.sourceListName = calendarName ?? reminder.calendarTitle
+                task.recurrence = reminder.recurrence
 
                 if reminder.isCompleted {
                     task.markCompleted(date: reminder.completionDate ?? task.completedAt ?? Date())
@@ -157,13 +163,17 @@ final class TaskStore {
                 }
                 task.updatedAt = .now
             } else {
+                let inferredType = inferredType(for: reminder)
                 let newTask = Task(
                     title: reminder.title,
                     notes: reminder.notes,
                     status: reminder.isCompleted ? .completed : .inbox,
                     dueDate: reminder.dueDate,
+                    type: inferredType,
                     source: sourceID
                 )
+                newTask.sourceListName = calendarName ?? reminder.calendarTitle
+                newTask.recurrence = reminder.recurrence
                 if reminder.isCompleted {
                     newTask.completedAt = reminder.completionDate ?? Date()
                 }
@@ -181,6 +191,44 @@ final class TaskStore {
 
     func saveContext() {
         try? context.save()
+    }
+
+    private func backfillTaskTypesIfNeeded() {
+        guard !defaults.bool(forKey: typeMigrationKey) else { return }
+        let descriptor = FetchDescriptor<Task>()
+        guard let tasks = try? context.fetch(descriptor) else { return }
+        for task in tasks {
+            let inferred: Task.TaskType
+            if let duration = task.estimatedDurationMinutes {
+                if duration <= Task.TaskType.quickTick.defaultDurationMinutes {
+                    inferred = .quickTick
+                } else if duration >= Task.TaskType.projectTask.defaultDurationMinutes {
+                    inferred = .projectTask
+                } else {
+                    inferred = .task
+                }
+            } else if task.isReminderImport, let source = task.source, source.contains("reminder:") {
+                inferred = .task
+            } else {
+                inferred = .task
+            }
+            task.type = inferred
+            if task.estimatedDurationMinutes == nil {
+                task.estimatedDurationMinutes = inferred.defaultDurationMinutes
+            }
+        }
+        saveContext()
+        defaults.set(true, forKey: typeMigrationKey)
+    }
+
+    private func inferredType(for reminder: RemindersProvider.ReminderItem) -> Task.TaskType {
+        if reminder.isFlagged || reminder.noteCharacterCount >= 140 {
+            return .projectTask
+        }
+        if reminder.hasDueTimeComponents || reminder.dueDate != nil || reminder.recurrence != nil {
+            return .task
+        }
+        return .quickTick
     }
 }
 

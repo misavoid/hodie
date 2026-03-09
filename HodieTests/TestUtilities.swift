@@ -16,6 +16,11 @@ enum TestUtilities {
     static func makeStores() throws -> (TaskStore, FocusSessionStore, ModelContainer) {
         let container = try inMemoryContainer()
         let context = container.mainContext
-        return (TaskStore(context: context), FocusSessionStore(context: context), container)
+        let suiteName = "com.hodie.tests.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            fatalError("Failed to create UserDefaults suite for tests")
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        return (TaskStore(context: context, defaults: defaults), FocusSessionStore(context: context), container)
     }
 }

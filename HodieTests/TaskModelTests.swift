@@ -23,4 +23,22 @@ struct TaskModelTests {
         #expect(task.plannedFor == nil)
         #expect(task.scheduledStart == nil)
     }
+
+    @Test func taskTypeDefaultsAndScheduledGrouping() async throws {
+        let quick = Task(title: "Tick", type: .quickTick)
+        #expect(quick.type == .quickTick)
+        #expect(quick.estimatedDurationMinutes == Task.TaskType.quickTick.defaultDurationMinutes)
+
+        let reminder = Task(
+            title: "Reminder",
+            dueDate: Date().addingTimeInterval(3600),
+            type: .task,
+            source: Task.reminderSourceID(calendarID: "fixture", reminderID: "1"),
+            sourceListName: "Calls",
+            recurrence: Task.RecurrenceRule(frequency: .daily)
+        )
+        #expect(reminder.isReminderImport)
+        #expect(reminder.shouldAppearInScheduledReminderSection)
+        #expect(reminder.reminderListDisplayLabel == "Calls")
+    }
 }

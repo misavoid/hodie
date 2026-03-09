@@ -65,7 +65,8 @@ final class RemindersSyncEngine: ObservableObject {
         syncState = .syncing
         let reminders = await provider.reminders(for: listID)
         let filtered = reminders.filter { shouldInclude($0) }
-        taskStore.importReminders(filtered, calendarID: listID)
+        let calendarName = provider.availableLists.first(where: { $0.id == listID })?.name
+        taskStore.importReminders(filtered, calendarID: listID, calendarName: calendarName)
         lastSyncedAt = Date()
         syncState = .idle
     }

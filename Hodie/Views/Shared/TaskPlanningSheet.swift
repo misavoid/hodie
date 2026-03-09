@@ -11,6 +11,7 @@ struct TaskPlanningSheet: View {
     @State private var assignExactTime: Bool
     @State private var startTime: Date
     @State private var durationMinutes: Int
+    @State private var taskType: Task.TaskType
 
     init(task: Task, defaultDate: Date, onSave: @escaping (Date, Date?, Int?) -> Void, onCancel: (() -> Void)? = nil) {
         self.task = task
@@ -22,6 +23,7 @@ struct TaskPlanningSheet: View {
         _assignExactTime = State(initialValue: task.scheduledStart != nil)
         _startTime = State(initialValue: task.scheduledStart ?? Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: initialDate) ?? initialDate)
         _durationMinutes = State(initialValue: task.estimatedDurationMinutes ?? 30)
+        _taskType = State(initialValue: task.type)
     }
 
     var body: some View {
@@ -36,6 +38,14 @@ struct TaskPlanningSheet: View {
                             Text("Duration: \(durationMinutes) min")
                         }
                     }
+                }
+                Section("Task Type") {
+                    Picker("Type", selection: $taskType) {
+                        ForEach(Task.TaskType.allCases) { type in
+                            Text(type.displayName).tag(type)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
                 Section("Task Details") {
                     Text(task.title)
@@ -54,6 +64,10 @@ struct TaskPlanningSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        task.type = taskType
+                        if task.estimatedDurationMinutes == nil {
+                            task.estimatedDurationMinutes = taskType.defaultDurationMinutes
+                        }
                         onSave(plannedDate, assignExactTime ? startTime : nil, assignExactTime ? durationMinutes : nil)
                         dismiss()
                     }

@@ -19,11 +19,17 @@ final class RemindersProvider: ObservableObject {
     struct ReminderItem: Identifiable, Hashable {
         let id: String
         let calendarIdentifier: String
+        let calendarTitle: String
         let title: String
         let notes: String?
         let dueDate: Date?
         let completionDate: Date?
+        let recurrence: RecurrenceRule?
         let isCompleted: Bool
+        let priority: Int
+        let hasDueTimeComponents: Bool
+        let noteCharacterCount: Int
+        let isFlagged: Bool
     }
 
     @Published private(set) var authorization: AuthorizationState = .unknown
@@ -117,15 +123,25 @@ final class RemindersProvider: ObservableObject {
 
         let predicate = eventStore.predicateForReminders(in: [calendar])
         let reminders = await fetchReminders(matching: predicate)
-        return reminders.map { reminder in
-            ReminderItem(
+        return reminders.compactMap { reminder in
+            let recurrence = reminder.recurrenceRules?.compactMap { recurrenceRule(from: $0) }.first
+            let dueComponents = reminder.dueDateComponents
+            let notes = reminder.notes
+
+            return ReminderItem(
                 id: reminder.calendarItemIdentifier,
                 calendarIdentifier: calendar.calendarIdentifier,
+                calendarTitle: reminder.calendar?.title ?? calendar.title,
                 title: reminder.title ?? "(No Title)",
-                notes: reminder.notes,
-                dueDate: date(from: reminder.dueDateComponents),
+                notes: notes,
+                dueDate: date(from: dueComponents),
                 completionDate: reminder.completionDate,
-                isCompleted: reminder.isCompleted
+                recurrence: recurrence,
+                isCompleted: reminder.isCompleted,
+                priority: reminder.priority,
+                hasDueTimeComponents: hasTimeComponents(dueComponents),
+                noteCharacterCount: notes?.count ?? 0,
+                isFlagged: reminder.priority == 1
             )
         }
     }
@@ -144,5 +160,21 @@ final class RemindersProvider: ObservableObject {
             components.timeZone = TimeZone.current
         }
         return Calendar.current.date(from: components)
+    }
+
+    private func hasTimeComponents(_ components: DateComponents?) -> Bool {
+        guard let components else { return false }
+        return components.hour != nil || components.minute != nil
+    }
+
+    private func recurrenceRule(from rule: EKRecurrenceRule) -> RecurrenceRule? {
+        switch rule.frequency {
+        case .daily:
+            return RecurrenceRule(frequency: .daily, interval: rule.interval)
+        case .weekly:
+            return RecurrenceRule(frequency: .weekly, interval: rule.interval)
+        default:
+            return nil
+        }
     }
 }

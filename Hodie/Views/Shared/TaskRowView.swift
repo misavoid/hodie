@@ -21,10 +21,11 @@ struct TaskRowView: View {
             .accessibilityLabel(task.status == .completed ? "Mark \(task.title) incomplete" : "Complete \(task.title)")
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(task.title)
                         .font(.headline)
                         .strikethrough(task.status == .completed)
+                    typeBadge
                     Spacer()
                     if let estimated = task.estimatedDurationMinutes {
                         Label("\(estimated)m", systemImage: "clock")
@@ -48,7 +49,7 @@ struct TaskRowView: View {
                         .foregroundStyle(.secondary)
                 }
                 if task.isReminderImport {
-                    ReminderOriginBadge()
+                    ReminderOriginBadge(listName: task.reminderListDisplayLabel)
                 }
             }
 
@@ -84,19 +85,38 @@ struct TaskRowView: View {
             }
         }
     }
+    @ViewBuilder
+    private var typeBadge: some View {
+        switch task.type {
+        case .task:
+            EmptyView()
+        case .quickTick, .projectTask:
+            Image(systemName: task.type.badgeIcon)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(task.type.displayName)
+                .padding(.leading, 2)
+        }
+    }
 }
 
 private struct ReminderOriginBadge: View {
+    var listName: String?
+
     var body: some View {
-        Label("Reminders", systemImage: "arrow.triangle.turn.up.right.circle.fill")
-            .font(.caption2)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .foregroundStyle(.secondary)
-            .background(
-                Capsule()
-                    .fill(Color.accentColor.opacity(0.12))
-            )
-            .accessibilityLabel("Imported from Reminders")
+        Label {
+            Text("From \(listName ?? "Reminders")")
+        } icon: {
+            Image(systemName: "arrow.triangle.turn.up.right.circle.fill")
+        }
+        .font(.caption2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .foregroundStyle(.secondary)
+        .background(
+            Capsule()
+                .fill(Color.accentColor.opacity(0.12))
+        )
+        .accessibilityLabel("Imported from \(listName ?? "Reminders")")
     }
 }

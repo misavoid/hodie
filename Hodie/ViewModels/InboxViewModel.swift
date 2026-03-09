@@ -4,15 +4,23 @@ import Combine
 @MainActor
 final class InboxViewModel: ObservableObject {
     @Published private(set) var inboxTasks: [Task] = []
+    @Published private(set) var inboxDisplayTasks: [Task] = []
+    @Published private(set) var scheduledReminderTasks: [Task] = []
+    @Published private(set) var reminderBacklogTasks: [Task] = []
     @Published var quickTitle: String = ""
     @Published var quickNotes: String = ""
     @Published var quickDueDate: Date? = nil
     @Published var quickPriority: Task.Priority = .normal
+    @Published var quickType: Task.TaskType?
     @Published var showingDetailForTask: Task?
     @Published var planningTask: Task?
     @Published var showingPlanSheet = false
+    @Published var scheduledRemindersExpanded: Bool = false
 
     private let taskStore: TaskStore
+    // Memoized signature prevents redundant SwiftUI diffing when reminder-backed tasks are unchanged.
+    private var reminderSignature: Int?
+    private var hasInitializedScheduledSection = false
 
     init(taskStore: TaskStore) {
         self.taskStore = taskStore
@@ -20,12 +28,18 @@ final class InboxViewModel: ObservableObject {
     }
 
     var canSaveQuickTask: Bool {
-        !quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && quickType != nil
     }
 
     func addQuickTask() {
-        guard canSaveQuickTask else { return }
-        _ = taskStore.quickAdd(title: quickTitle.trimmingCharacters(in: .whitespacesAndNewlines), notes: quickNotes, dueDate: quickDueDate, priority: quickPriority)
+        guard canSaveQuickTask, let quickType else { return }
+        _ = taskStore.quickAdd(
+            title: quickTitle.trimmingCharacters(in: .whitespacesAndNewlines),
+            notes: quickNotes,
+            dueDate: quickDueDate,
+            priority: quickPriority,
+            type: quickType
+        )
         refreshInbox()
         resetQuickEntry()
     }
@@ -61,17 +75,49 @@ final class InboxViewModel: ObservableObject {
         quickNotes = ""
         quickDueDate = nil
         quickPriority = .normal
+        quickType = nil
     }
 
     func refreshInbox() {
-        inboxTasks = taskStore.inboxTasks()
+#if DEBUG
+        let startTime = CFAbsoluteTimeGetCurrent()
+#endif
+        let tasks = taskStore.inboxTasks()
+        // Pre-split inbox once to keep Today/Inbox scrolling responsive when hundreds of reminders sync in.
+        inboxTasks = tasks
+        let reminderCandidates = tasks.filter { $0.isReminderImport }
+        let scheduled = reminderCandidates.filter { $0.shouldAppearInScheduledReminderSection }
+        reminderBacklogTasks = reminderCandidates.filter { !$0.shouldAppearInScheduledReminderSection }
+        inboxDisplayTasks = tasks.filter { !$0.shouldAppearInScheduledReminderSection }
+
+        var hasher = Hasher()
+        scheduled.forEach { task in
+            hasher.combine(task.source)
+            hasher.combine(task.updatedAt)
+        }
+        let signature = hasher.finalize()
+        if reminderSignature != signature {
+            scheduledReminderTasks = scheduled
+            reminderSignature = signature
+        }
+
+        if !scheduled.isEmpty && !hasInitializedScheduledSection {
+            scheduledRemindersExpanded = false
+            hasInitializedScheduledSection = true
+        }
+#if DEBUG
+        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+        if elapsed > 0.005 {
+            debugPrint(String(format: "[InboxViewModel] refreshInbox fetched %d tasks in %.4f s", tasks.count, elapsed))
+        }
+#endif
     }
 
-    var reminderTasks: [Task] {
-        inboxTasks.filter { $0.isReminderImport }
+    func setScheduledSectionExpanded(_ expanded: Bool) {
+        scheduledRemindersExpanded = expanded
     }
 
     var reminderInboxCount: Int {
-        reminderTasks.count
+        scheduledReminderTasks.count + reminderBacklogTasks.count
     }
 }

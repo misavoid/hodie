@@ -9,17 +9,36 @@ struct InboxView: View {
     @State private var editingTask: Task?
     @State private var includeDueDate = false
     @State private var showingRemindersSheet = false
+    @FocusState private var focusedQuickField: QuickField?
 
     var body: some View {
         NavigationStack {
             List {
                 Section("Quick Capture") {
-                    TextField("Task title", text: $viewModel.quickTitle)
+                    TextField("Task title", text: $viewModel.quickTitle, axis: .vertical)
+                        .lineLimit(1...3)
+                        .font(.title3)
+                        .padding(.vertical, 4)
                         .textFieldStyle(.roundedBorder)
                         .submitLabel(.done)
-                        .onSubmit(viewModel.addQuickTask)
+                        .onSubmit(handleQuickAdd)
+                        .onChange(of: viewModel.quickTitle) { _, newValue in
+                            guard newValue.contains(where: \.isNewline) else { return }
+                            let sanitized = newValue.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                            viewModel.quickTitle = sanitized
+                            handleQuickAdd()
+                        }
+                        .accessibilityIdentifier("quickCapture.title")
+                        .focused($focusedQuickField, equals: .title)
                     TextField("Notes", text: $viewModel.quickNotes, axis: .vertical)
                         .lineLimit(1...3)
+                        .focused($focusedQuickField, equals: .notes)
+                    Picker("Task Type", selection: $viewModel.quickType) {
+                        ForEach(Task.TaskType.allCases) { type in
+                            Text(type.displayName).tag(Optional(type))
+                        }
+                    }
+                    .pickerStyle(.segmented)
                     Toggle("Add due date", isOn: $includeDueDate.animation())
                     if includeDueDate {
                         DatePicker("Due", selection: Binding($viewModel.quickDueDate, default: Date()), displayedComponents: [.date])
@@ -29,7 +48,7 @@ struct InboxView: View {
                             Text(priority.rawValue.capitalized).tag(priority)
                         }
                     }
-                    Button(action: viewModel.addQuickTask) {
+                    Button(action: handleQuickAdd) {
                         Label("Add to Inbox", systemImage: "plus")
                             .frame(maxWidth: .infinity)
                     }
@@ -51,10 +70,48 @@ struct InboxView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if viewModel.inboxTasks.isEmpty {
-                        ContentUnavailableView("Inbox is clear", systemImage: "sparkles", description: Text("Capture tasks above to start."))
+                    if viewModel.scheduledReminderTasks.isEmpty == false {
+                        DisclosureGroup(isExpanded: Binding(
+                            get: { viewModel.scheduledRemindersExpanded },
+                            set: { viewModel.setScheduledSectionExpanded($0) }
+                        )) {
+                            LazyVStack(spacing: 0) {
+                                ForEach(viewModel.scheduledReminderTasks) { task in
+                                    TaskRowView(
+                                        task: task,
+                                        onToggle: { viewModel.toggleCompletion(task) },
+                                        onFocus: { focusController.begin(for: task) },
+                                        onPlan: { editingTask = task },
+                                        onDelete: { viewModel.delete(task) }
+                                    )
+                                    .swipeActions(edge: .trailing) {
+                                        Button("Plan") { editingTask = task }
+                                            .tint(.indigo)
+                                        Button("Focus") { focusController.begin(for: task) }
+                                            .tint(.orange)
+                                        Button(role: .destructive) { viewModel.delete(task) } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Label("Scheduled & Recurring Reminders", systemImage: "calendar.badge.clock")
+                                Spacer()
+                                CountBadge(count: viewModel.scheduledReminderTasks.count)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityHint("Show or hide scheduled reminders")
+                    }
+
+                    if viewModel.inboxDisplayTasks.isEmpty {
+                        if viewModel.scheduledReminderTasks.isEmpty {
+                            ContentUnavailableView("Inbox is clear", systemImage: "sparkles", description: Text("Capture tasks above to start."))
+                        }
                     } else {
-                        ForEach(viewModel.inboxTasks) { task in
+                        ForEach(viewModel.inboxDisplayTasks) { task in
                             TaskRowView(
                                 task: task,
                                 onToggle: { viewModel.toggleCompletion(task) },
@@ -73,7 +130,7 @@ struct InboxView: View {
                             }
                         }
                         .onMove { indices, newOffset in
-                            var updated = viewModel.inboxTasks
+                            var updated = viewModel.inboxDisplayTasks
                             updated.move(fromOffsets: indices, toOffset: newOffset)
                             viewModel.reorder(tasks: updated)
                         }
@@ -81,7 +138,17 @@ struct InboxView: View {
                 }
             }
             .navigationTitle("Inbox")
-            .toolbar { EditButton() }
+            .toolbar {
+                EditButton()
+            }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        focusedQuickField = nil
+                    }
+                }
+            }
             .sheet(item: $editingTask) { task in
                 TaskPlanningSheet(task: task, defaultDate: .now) { date, start, duration in
                     viewModel.plan(task, for: date, start: start, durationMinutes: duration)
@@ -107,6 +174,16 @@ struct InboxView: View {
                 viewModel.refreshInbox()
             }
         }
+    }
+
+    private func handleQuickAdd() {
+        viewModel.addQuickTask()
+        focusedQuickField = nil
+    }
+
+    private enum QuickField: Hashable {
+        case title
+        case notes
     }
 }
 
@@ -136,13 +213,7 @@ private struct RemindersInboxSummaryRow: View {
                 ProgressView()
                     .progressViewStyle(.circular)
             } else {
-                Text(count, format: .number)
-                    .font(.footnote)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(.thinMaterial)
-                    .clipShape(Capsule())
+                CountBadge(count: count)
                     .accessibilityLabel("\(count) reminders awaiting triage")
             }
         }
@@ -166,5 +237,19 @@ private struct RemindersInboxSummaryRow: View {
                 return "Select a list to import"
             }
         }
+    }
+}
+
+private struct CountBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text(count, format: .number)
+            .font(.footnote)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(.thinMaterial)
+            .clipShape(Capsule())
     }
 }

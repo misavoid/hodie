@@ -27,6 +27,38 @@ final class Task: Identifiable {
         }
     }
 
+    enum TaskType: String, Codable, CaseIterable, Identifiable {
+        case quickTick
+        case task
+        case projectTask
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .quickTick: return "Quick Tick"
+            case .task: return "Task"
+            case .projectTask: return "Project Task"
+            }
+        }
+
+        var badgeIcon: String {
+            switch self {
+            case .quickTick: return "bolt.circle"
+            case .task: return "checkmark.circle"
+            case .projectTask: return "hammer.fill"
+            }
+        }
+
+        var defaultDurationMinutes: Int {
+            switch self {
+            case .quickTick: return 5
+            case .task: return 30
+            case .projectTask: return 60
+            }
+        }
+    }
+
     @Attribute(.unique) var id: UUID
     var title: String
     var notes: String?
@@ -41,7 +73,9 @@ final class Task: Identifiable {
     var completedAt: Date?
     var priority: Priority
     var orderIndex: Double
+    var type: TaskType
     var source: String?
+    var sourceListName: String?
     var recurrence: RecurrenceRule?
     @Relationship(deleteRule: .cascade, inverse: \FocusSession.task) var focusSessions: [FocusSession]
 
@@ -60,7 +94,9 @@ final class Task: Identifiable {
         completedAt: Date? = nil,
         priority: Priority = .normal,
         orderIndex: Double = Date.now.timeIntervalSinceReferenceDate,
+        type: TaskType = .task,
         source: String? = nil,
+        sourceListName: String? = nil,
         recurrence: RecurrenceRule? = nil
     ) {
         self.id = id
@@ -73,11 +109,13 @@ final class Task: Identifiable {
         self.plannedFor = plannedFor?.startOfDay()
         self.scheduledStart = scheduledStart
         self.scheduledEnd = scheduledEnd
-        self.estimatedDurationMinutes = estimatedDurationMinutes
+        self.estimatedDurationMinutes = estimatedDurationMinutes ?? type.defaultDurationMinutes
         self.completedAt = completedAt
         self.priority = priority
         self.orderIndex = orderIndex
+        self.type = type
         self.source = source
+        self.sourceListName = sourceListName
         self.recurrence = recurrence
         self.focusSessions = []
     }
@@ -145,5 +183,16 @@ extension Task {
 
     static func reminderSourceID(calendarID: String, reminderID: String) -> String {
         reminderSourcePrefix(for: calendarID) + reminderID
+    }
+
+    var reminderListDisplayLabel: String? {
+        guard isReminderImport else { return nil }
+        return sourceListName
+    }
+
+    var shouldAppearInScheduledReminderSection: Bool {
+        guard isReminderImport else { return false }
+        if recurrence != nil { return true }
+        return dueDate != nil
     }
 }
