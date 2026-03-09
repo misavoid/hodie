@@ -94,8 +94,10 @@ private struct TimelineCanvasView: View {
     private let hourHeight: CGFloat = 60
     private let consecutiveEventSpacing: CGFloat = 10
     private let overlappingLaneSpacing: CGFloat = 8
+    private let overlappingLaneSpacingBoost: CGFloat = 6
     private let endOfDayInset: CGFloat = 32
     private let contiguousTolerance: TimeInterval = 1
+    private let parallelStartWindow: TimeInterval = 60
     private var visibleMinutes: Double {
         max(1, timelineBounds.end.timeIntervalSince(timelineBounds.start) / 60)
     }
@@ -112,7 +114,9 @@ private struct TimelineCanvasView: View {
             let overlapsAnotherLane = layouts.contains { other in
                 guard other.id != layout.id else { return false }
                 guard other.laneIndex != layout.laneIndex else { return false }
-                return other.item.start <= layout.item.start && layout.item.start < other.item.end
+                let startDifference = abs(layout.item.start.timeIntervalSince(other.item.start))
+                guard startDifference <= parallelStartWindow else { return false }
+                return layout.item.start < other.item.end
             }
             lookup[layout.id] = overlapsAnotherLane
         }
@@ -234,23 +238,22 @@ private struct TimelineCanvasView: View {
         var laneBottoms: [Int: CGFloat] = [:]
         var laneLastEndTimes: [Int: Date] = [:]
         var maxBottom: CGFloat = 0
+        let dynamicOverlapSpacing = overlappingLaneSpacing + max(0, (1 - pointsPerMinute)) * overlappingLaneSpacingBoost
 
         for layout in layouts {
             let baseStart = rawOffset(for: layout.item.start, pointsPerMinute: pointsPerMinute)
             let laneBottom = laneBottoms[layout.laneIndex] ?? .leastNormalMagnitude
             let lastEnd = laneLastEndTimes[layout.laneIndex]
-            let isContiguous = lastEnd.map { abs(layout.item.start.timeIntervalSince($0)) <= contiguousTolerance } ?? false
+            let timeSinceLastEnd = lastEnd.map { layout.item.start.timeIntervalSince($0) }
+            let hasMeaningfulGapBeforeStart = timeSinceLastEnd.map { $0 > contiguousTolerance } ?? false
             let startOverlapsAnotherLane = overlapLookup[layout.id] ?? false
 
             let adjustedStart: CGFloat
             if laneBottom.isFinite {
-                let spacing: CGFloat
-                if isContiguous {
-                    spacing = startOverlapsAnotherLane ? overlappingLaneSpacing : consecutiveEventSpacing
-                } else {
-                    spacing = 0
-                }
-                adjustedStart = max(baseStart, laneBottom + spacing)
+                let baseSpacing = consecutiveEventSpacing
+                let overlapSpacingApplied = startOverlapsAnotherLane && hasMeaningfulGapBeforeStart
+                let overlapSpacing = overlapSpacingApplied ? min(consecutiveEventSpacing, dynamicOverlapSpacing) : baseSpacing
+                adjustedStart = max(baseStart, laneBottom + overlapSpacing)
             } else {
                 adjustedStart = baseStart
             }
